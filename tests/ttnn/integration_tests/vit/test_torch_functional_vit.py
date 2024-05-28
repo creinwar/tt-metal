@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-
+import inspect
 import torch
 import transformers
 
@@ -238,13 +238,11 @@ def test_vit_encoder(model_name, batch_size, sequence_size):
 @pytest.mark.parametrize("image_channels", [3])
 def test_vit(model_name, batch_size, image_size, image_channels):
     torch.manual_seed(0)
-
-    config = transformers.ViTConfig.from_pretrained(model_name)
-    model = transformers.ViTForImageClassification.from_pretrained("google/vit-base-patch16-224")
+    model = transformers.ViTModel.from_pretrained(model_name)
     model = model.to(torch.bfloat16)
 
     torch_pixel_values = torch_random((batch_size, image_channels, image_size, image_size), -1, 1, dtype=torch.bfloat16)
-    torch_output, *_ = model(torch_pixel_values).logits
+    torch_output = model(torch_pixel_values)
 
     parameters = preprocess_model_parameters(
         initialize_model=lambda: model,
@@ -254,11 +252,11 @@ def test_vit(model_name, batch_size, image_size, image_channels):
 
     # TODO: integrate within paramters
     model_state_dict = model.state_dict()
-    torch_cls_token = torch.nn.Parameter(model_state_dict["vit.embeddings.cls_token"])
-    torch_position_embeddings = torch.nn.Parameter(model_state_dict["vit.embeddings.position_embeddings"])
+    torch_cls_token = torch.nn.Parameter(model_state_dict["embeddings.cls_token"])
+    torch_position_embeddings = torch.nn.Parameter(model_state_dict["embeddings.position_embeddings"])
 
     output = torch_functional_vit.vit(
-        config,
+        model.config,
         torch_pixel_values,
         torch_position_embeddings,
         torch_cls_token,
@@ -266,5 +264,4 @@ def test_vit(model_name, batch_size, image_size, image_channels):
         parameters=parameters,
     )
 
-    print(torch_output.shape, output.shape)
-    assert_with_pcc(torch_output, output[0], 0.9999)
+    assert_with_pcc(torch_output["pooler_output"], output, 0.9999)

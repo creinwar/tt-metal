@@ -243,31 +243,29 @@ def vit(
     parameters,
 ):
     hidden_states = vit_embeddings(
-        config, pixel_values, position_embeddings, cls_tokens, parameters=parameters.vit.embeddings
+        config, pixel_values, position_embeddings, cls_tokens, parameters=parameters.embeddings
     )
 
     hidden_states = vit_encoder(
         config,
         hidden_states,
         attention_mask,
-        parameters=parameters.vit.encoder,
+        parameters=parameters.encoder,
     )
 
     # Final LayerNorm
     output = torch.nn.functional.layer_norm(
         hidden_states,
         (config.hidden_size,),
-        parameters.vit.layernorm.weight,
-        parameters.vit.layernorm.bias,
+        parameters.layernorm.weight,
+        parameters.layernorm.bias,
         eps=config.layer_norm_eps,
     )
-
-    # Pooler
-    pooler_output = output[0] @ parameters.classifier.weight
-    pooler_output = pooler_output + parameters.classifier.bias
-    # pooler_output = torch.tanh(pooler_output)
-
-    return pooler_output
+    sequence_output = output
+    output = output[:, 0]
+    pooler_output = output @ parameters.pooler.dense.weight
+    pooler_output = pooler_output + parameters.pooler.dense.bias
+    return [sequence_output, pooler_output]
 
 
 def custom_preprocessor(torch_model, name):
