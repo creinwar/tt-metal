@@ -60,8 +60,8 @@ jobs:
       - name: Package Docs
         run: |
           mkdir tt-metalium
-          cp -aR docs/doxygen_build tt-metalium
-          cp -aR docs/source/tt-metalium/* tt-metalium
+          cp -Prv docs/doxygen_build tt-metalium
+          cp -Prv docs/source/tt-metalium/* tt-metalium
           rm tt-metalium/conf.py  # Do not change conf.py
           GITHUB_USER=dimitri-tenstorrent
           # git config --global user.email "tenstorrent-github-bot@tenstorrent.com"
