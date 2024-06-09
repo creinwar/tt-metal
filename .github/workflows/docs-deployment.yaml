@@ -80,4 +80,4 @@ jobs:
             tt-metalium
       - name: Push docs to Docs repo for publishing
         run: |
-          pip install -r docs/requirements.txt
+          echo "List files"
