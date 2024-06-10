@@ -175,32 +175,75 @@ def run_test_FalconModel_inference(
 
         does_pass = does_pass and does_pass2
 
-    for layer in range(num_layers):
-        print("layer:", layer)
-        print(
-            comp_pcc(
-                pytorch_FalconModel.model.h[layer].self_attention.out_hidden_states[:batch],
-                tt2torch_tensor(tt_FalconModel.layers[layer].self_attn_decode.out_hidden_states[0])
-                .squeeze(1)
-                .transpose(0, 1),
+    for device_id in range(num_devices):
+        print("=" * 10 + "Device: " + str(device_id) + "=" * 10)
+        for layer in range(num_layers):
+            print("layer:", layer)
+            print(
+                "hidden_states:",
+                comp_pcc(
+                    pytorch_FalconModel.model.h[layer].self_attention.out_hidden_states[
+                        batch * device_id : batch * (device_id + 1)
+                    ],
+                    tt2torch_tensor(tt_FalconModel.layers[layer].self_attn_decode.out_hidden_states[device_id])
+                    .squeeze(1)
+                    .transpose(0, 1),
+                ),
             )
-        )
-        print(
-            comp_pcc(
-                pytorch_FalconModel.model.h[layer].self_attention.out_key_layer[:batch],
-                tt2torch_tensor(tt_FalconModel.layers[layer].self_attn_decode.out_key_layer[0])
-                .squeeze(1)
-                .transpose(0, 1),
+            print(
+                "kcache:",
+                comp_pcc(
+                    pytorch_FalconModel.model.h[layer].self_attention.out_key_layer[
+                        batch * device_id : batch * (device_id + 1)
+                    ],
+                    tt2torch_tensor(tt_FalconModel.layers[layer].self_attn_decode.out_key_layer[device_id])
+                    .squeeze(1)
+                    .transpose(0, 1),
+                ),
             )
-        )
-        print(
-            comp_pcc(
-                pytorch_FalconModel.model.h[layer].self_attention.out_value_layer[:batch],
-                tt2torch_tensor(tt_FalconModel.layers[layer].self_attn_decode.out_value_layer[0])
-                .squeeze(1)
-                .transpose(0, 1),
+            print(
+                "vcache:",
+                comp_pcc(
+                    pytorch_FalconModel.model.h[layer].self_attention.out_value_layer[
+                        batch * device_id : batch * (device_id + 1)
+                    ],
+                    tt2torch_tensor(tt_FalconModel.layers[layer].self_attn_decode.out_value_layer[device_id])
+                    .squeeze(1)
+                    .transpose(0, 1),
+                ),
             )
-        )
+            print(
+                "attn_out:",
+                comp_pcc(
+                    pytorch_FalconModel.model.h[layer].out_attn[batch * device_id : batch * (device_id + 1)],
+                    tt2torch_tensor(tt_FalconModel.layers[layer].out_attn[device_id]).squeeze(1).transpose(0, 1),
+                ),
+            )
+            print(
+                "mlp_out:",
+                comp_pcc(
+                    pytorch_FalconModel.model.h[layer].out_mlp[batch * device_id : batch * (device_id + 1)],
+                    tt2torch_tensor(tt_FalconModel.layers[layer].out_mlp[device_id]).squeeze(1).transpose(0, 1),
+                ),
+            )
+            print(
+                "ff1_out:",
+                comp_pcc(
+                    pytorch_FalconModel.model.h[layer].mlp.out_ff1[batch * device_id : batch * (device_id + 1)],
+                    tt2torch_tensor(tt_FalconModel.layers[layer].mlp_decode.out_ff1[device_id])
+                    .squeeze(1)
+                    .transpose(0, 1),
+                ),
+            )
+            print(
+                "gelu_out:",
+                comp_pcc(
+                    pytorch_FalconModel.model.h[layer].mlp.out_gelu[batch * device_id : batch * (device_id + 1)],
+                    tt2torch_tensor(tt_FalconModel.layers[layer].mlp_decode.out_gelu[device_id])
+                    .squeeze(1)
+                    .transpose(0, 1),
+                ),
+            )
 
     breakpoint()
 
@@ -223,8 +266,8 @@ def run_test_FalconModel_inference(
 )
 @pytest.mark.parametrize(
     "num_layers, pcc",
-    ((1, 0.98), (2, 0.98), (6, 0.98), (32, 0.98)),
-    ids=["layers_1", "layers_2", "layers_6", "layers_32"],
+    ((1, 0.98), (2, 0.98), (5, 0.98), (32, 0.98)),
+    ids=["layers_1", "layers_2", "layers_5", "layers_32"],
 )
 @pytest.mark.parametrize(
     "model_version",

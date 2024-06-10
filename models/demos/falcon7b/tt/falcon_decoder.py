@@ -187,7 +187,9 @@ class TtFalconDecoderLayer(nn.Module):
                 use_cache=use_cache,
             )
             attention_output, layer_present = attn_outputs[0], attn_outputs[1]
+            self.out_attn = [ttnn.experimental.tensor.clone(attention_output[i]) for i in range(self.num_devices)]
             mlp_output = self.mlp_decode(layernorm_output)
+            self.out_mlp = [ttnn.experimental.tensor.clone(mlp_output[i]) for i in range(self.num_devices)]
 
         else:
             raise ValueError(f"Unknown llm_mode: {llm_mode}")

@@ -490,7 +490,10 @@ class FalconMLP(nn.Module):
         self.hidden_dropout = config.hidden_dropout
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.act(self.dense_h_to_4h(x))
+        x = self.dense_h_to_4h(x)
+        self.out_ff1 = torch.clone(x)
+        x = self.act(x)
+        self.out_gelu = torch.clone(x)
         x = self.dense_4h_to_h(x)
         return x
 
@@ -546,6 +549,8 @@ class FalconDecoderLayer(nn.Module):
 
         attention_output = attn_outputs[0]
 
+        self.out_attn = torch.clone(attention_output)
+
         if not self.config.new_decoder_architecture:
             if self.config.parallel_attn:
                 mlp_layernorm_out = attention_layernorm_out
@@ -562,6 +567,8 @@ class FalconDecoderLayer(nn.Module):
 
         # MLP.
         mlp_output = self.mlp(mlp_layernorm_out)
+
+        self.out_mlp = torch.clone(mlp_output)
 
         if self.config.new_decoder_architecture or self.config.parallel_attn:
             mlp_output += attention_output

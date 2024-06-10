@@ -561,7 +561,7 @@ Tensor falcon_dense_4h_to_h_matmul(
     CoreCoord grid_size = get_falcon_matmul_grid_size(input_tensor_a.device());
     std::optional<const DeviceComputeKernelConfig> config = std::nullopt;
     auto compute_kernel_config = init_device_compute_kernel_config(
-        input_tensor_a.device()->arch(), config, MathFidelity::LoFi, true, false, packer_l1_acc.value_or(false));
+        input_tensor_a.device()->arch(), config, MathFidelity::LoFi, true, true, packer_l1_acc.value_or(false));
     auto program_config = bmm_op_utils::get_mcast_1d_config(
         input_tensor_a,
         input_tensor_b,
@@ -607,7 +607,7 @@ Tensor falcon_dense_h_to_4h_matmul(
             config,
             MathFidelity::LoFi,
             true /* math_approx_mode */,
-            false /* fp32_dest_acc_en */,
+            true /* fp32_dest_acc_en */,
             true /* packer_l1_acc */);
         auto program_config = bmm_op_utils::get_mcast_1d_config(
             input_tensor_a,
