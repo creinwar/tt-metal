@@ -51,7 +51,6 @@ jobs:
         -v /etc/group:/etc/group:ro
         -v /etc/passwd:/etc/passwd:ro
         -v /etc/shadow:/etc/shadow:ro
-        -u ${UID}:${GID}
     steps:
       - uses: tenstorrent-metal/metal-workflows/.github/actions/checkout-with-submodule-lfs@v2.0.0
       - name: Set up dynamic env vars for build
