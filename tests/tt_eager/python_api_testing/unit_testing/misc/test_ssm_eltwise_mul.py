@@ -28,7 +28,11 @@ def run_ssm_eltwise_mul_test(in0_W, in1_W, dtype, in0_mem_config, in1_mem_config
     tt_input_tensor_X = ttl.tensor.Tensor(X, dtype).to(ttl.tensor.Layout.TILE).to(device, in1_mem_config)
 
     tt_out = ttl.operations.primary.transformers.ssm_eltwise_mul(
-        tt_input_tensor_B, tt_input_tensor_X, output_mem_config=out_mem_config, output_dtype=dtype
+        tt_input_tensor_B,
+        tt_input_tensor_X,
+        output_mem_config=out_mem_config,
+        output_dtype=dtype,
+        math_fidelity=ttl.tensor.MathFidelity.HiFi2,
     )
 
     assert list(tt_out.get_legacy_shape()) == [1, 1, batch_size, latent_size * hidden_size]

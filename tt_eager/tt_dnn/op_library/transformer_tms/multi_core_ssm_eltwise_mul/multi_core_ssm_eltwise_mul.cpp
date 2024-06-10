@@ -64,28 +64,28 @@ operation::ProgramWithCallbacks multi_core_ssm_eltwise_mul(
 
     // Create circular buffers
     uint32_t src0_cb_index = CB::c_in0;
-    uint32_t cb0_tiles = ONE_TILE * 2;  // double buffer
+    uint32_t cb0_tiles = ONE_TILE * 4;  // double buffer
     tt_metal::CircularBufferConfig cb_src0_config =
         tt_metal::CircularBufferConfig(cb0_tiles * in0_single_tile_size, {{src0_cb_index, in0_data_format}})
             .set_page_size(src0_cb_index, in0_single_tile_size);
     auto cb_src0 = tt_metal::CreateCircularBuffer(program, all_cores, cb_src0_config);
 
     uint32_t src1_cb_index = CB::c_in1;
-    uint32_t cb1_tiles = ONE_TILE * 2;  // double buffer
+    uint32_t cb1_tiles = ONE_TILE * 4;  // double buffer
     tt_metal::CircularBufferConfig cb_src1_config =
         tt_metal::CircularBufferConfig(cb1_tiles * in1_single_tile_size, {{src1_cb_index, in1_data_format}})
             .set_page_size(src1_cb_index, in1_single_tile_size);
     auto cb_src1 = tt_metal::CreateCircularBuffer(program, all_cores, cb_src1_config);
 
     uint32_t output_cb_index = 16;
-    uint32_t output_cb_tiles = ONE_TILE * 2;  // double buffer
+    uint32_t output_cb_tiles = ONE_TILE * 4;  // double buffer
     tt_metal::CircularBufferConfig cb_output_config =
         tt_metal::CircularBufferConfig(
             output_cb_tiles * output_single_tile_size, {{output_cb_index, output_data_format}})
             .set_page_size(output_cb_index, output_single_tile_size);
     auto cb_output = tt_metal::CreateCircularBuffer(program, all_cores, cb_output_config);
 
-    uint32_t interm_num_tiles = ONE_TILE * 2;  // double buffer
+    uint32_t interm_num_tiles = ONE_TILE * 4;  // double buffer
     uint32_t interm_cb_size = interm_num_tiles * interm_single_tile_size;
     uint32_t cb_intermed0_index = CB::c_intermed0;  // cb_in0_transposed
     tt_metal::CircularBufferConfig cb_intermed0_config =
@@ -154,7 +154,7 @@ operation::ProgramWithCallbacks multi_core_ssm_eltwise_mul(
 
     auto writer_kernel_id = tt_metal::CreateKernel(
         program,
-        "tt_eager/tt_dnn/kernels/dataflow/writer_unary_interleaved_start_id.cpp",
+        "tt_eager/tt_dnn/op_library/transformer_tms/kernels/dataflow/writer_ssm_eltwise_mul.cpp",
         all_cores,
         tt_metal::WriterDataMovementConfig(writer_compile_time_args));
 
@@ -199,6 +199,7 @@ operation::ProgramWithCallbacks multi_core_ssm_eltwise_mul(
 
         // Default writer runtime args
         std::vector<uint32_t> writer_runtime_args = {
+            0,
             0,
             0,
             0,
