@@ -12,7 +12,7 @@ import ttnn.experimental
 from models.demos.t3000.falcon40b.tt.falcon_attention_optimized import TtFalconAttentionOptimized as TtFalconAttention
 from models.demos.t3000.falcon40b.tt.falcon_mlp_optimized import TtFalconMLPOptimized as TtFalconMLP
 
-from models.demos.t3000.falcon40b.tt.model_utils import partial_layernorm
+from models.demos.t3000.falcon40b.tt.model_utils_optimized import partial_layernorm
 
 
 class TtFalconDecoderLayer:
@@ -80,7 +80,7 @@ class TtFalconDecoderLayer:
             device=self.device_mesh,
             memory_config=self.model_config["LN_MLP_WEIGHTS_MEMCFG"],
             mesh_mapper=ReplicateTensorToMesh(self.device_mesh),
-            # cache_file_name=ln_mlp_weights_path,
+            cache_file_name=ln_mlp_weights_path,
             preprocess=lambda x: x.reshape([1, 1, -1, 32]),
         )
 
@@ -93,7 +93,7 @@ class TtFalconDecoderLayer:
             device=self.device_mesh,
             memory_config=self.model_config["LN_MLP_BIAS_MEMCFG"],
             mesh_mapper=ReplicateTensorToMesh(self.device_mesh),
-            # cache_file_name=ln_mlp_bias_path,
+            cache_file_name=ln_mlp_bias_path,
             preprocess=lambda x: x.reshape([1, 1, -1, 32]),
         )
 
@@ -111,7 +111,7 @@ class TtFalconDecoderLayer:
             device=self.device_mesh,
             memory_config=self.model_config["LN_ATTN_WEIGHTS_MEMCFG"],
             mesh_mapper=ReplicateTensorToMesh(self.device_mesh),
-            # cache_file_name=ln_attn_weights_path,
+            cache_file_name=ln_attn_weights_path,
             preprocess=lambda x: x.reshape([1, 1, -1, 32]),
         )
 
@@ -124,7 +124,7 @@ class TtFalconDecoderLayer:
             device=self.device_mesh,
             memory_config=self.model_config["LN_ATTN_BIAS_MEMCFG"],
             mesh_mapper=ReplicateTensorToMesh(self.device_mesh),
-            # cache_file_name=ln_attn_bias_path,
+            cache_file_name=ln_attn_bias_path,
             preprocess=lambda x: x.reshape([1, 1, -1, 32]),
         )
 
@@ -201,7 +201,6 @@ class TtFalconDecoderLayer:
                 output_mem_config=self.model_config["DEFAULT_MEMCFG"],
             )
         else:
-            print("cloning hidden states")
             replicated_hidden_states = ttnn.experimental.tensor.clone(
                 hidden_states,
                 output_mem_config=self.model_config["DEFAULT_MEMCFG"],
