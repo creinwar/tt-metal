@@ -21,6 +21,8 @@ jobs:
           else
             echo "::set-output name=IMAGE_TAG::${GITHUB_ACTOR}" >> $GITHUB_ENV
           fi
+      outputs:
+        IMAGE_TAG: ${{ steps.set-image.outputs.IMAGE_TAG }}
   build-artifact:
     needs: set-docker-image-tag
     strategy:
@@ -35,7 +37,7 @@ jobs:
     environment: dev
     runs-on: build
     container:
-      image: ghcr.io/${{ github.repository }}/${{ matrix.arch }}:$IMAGE_TAG
+      image: ghcr.io/${{ github.repository }}/${{ matrix.arch }}:${{ needs.set-image.outputs.IMAGE_TAG }}
       env: 
         TT_METAL_HOME: ${{ env.TT_METAL_HOME }}
         CONFIG: ${{ env.CONFIG }}
