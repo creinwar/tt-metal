@@ -36,7 +36,7 @@ jobs:
       VERBOSE: 1
       TT_METAL_DOCKER_IMAGE: ubuntu-20.04-amd64
     environment: dev
-    runs-on: build
+    runs-on: build-docker
     container:
       image: ghcr.io/${{ github.repository }}/${{ matrix.arch }}:${{ needs.set-docker-image-tag.outputs.IMAGE_TAG }}
       env: 

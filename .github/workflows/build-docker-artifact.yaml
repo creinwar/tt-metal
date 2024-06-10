@@ -14,7 +14,7 @@ jobs:
       TT_METAL_DOCKER_IMAGE: ubuntu-20.04-amd64
       TT_METAL_DOCKER_IMAGE_TAG: latest
     environment: dev
-    runs-on: build
+    runs-on: build-docker
     steps:
       - uses: tenstorrent-metal/metal-workflows/.github/actions/checkout-with-submodule-lfs@v2.0.0
       - name: Login to GitHub Container Registry
