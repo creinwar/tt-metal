@@ -213,47 +213,39 @@ class TtFalconAttentionOptimized:
         self.layer_past = None
 
     def initialize_kvcache(self):
-        assert False, "Multi-device tensors are not supported in this version of the code."
         if self.layer_past is None:
             # Preloading the kvcache
             attn_cache_shape = (
                 self.max_batch_size,
-                self.num_kv_heads // len(self.devices),
+                self.num_kv_heads // self.num_devices,
                 self.max_position_embeddings,
                 self.head_dim,
             )
-            kvcache_path = self.tt_cache_path / f"empty_attn_cache{attn_cache_shape}.bin"
+            kv_cache_path = self.tt_cache_path / f"empty_attn_cache{attn_cache_shape}"
             k_cache = []
             v_cache = []
-            if (kvcache_path).exists():
-                for i in range(len(self.devices)):
-                    k_cache.append(
-                        ttnn.experimental.tensor.load_tensor(str(kvcache_path)).to(
-                            self.devices[i], self.model_config["DRAM_MEMCFG"]
-                        )
-                    )
-                    v_cache.append(
-                        ttnn.experimental.tensor.load_tensor(str(kvcache_path)).to(
-                            self.devices[i], self.model_config["DRAM_MEMCFG"]
-                        )
-                    )
-            else:
-                attn_cache = torch.zeros(attn_cache_shape)
-                tt_attn_cache = torch2tt_tensor(
-                    attn_cache,
-                    None,
-                    tt_memory_config=self.model_config["DRAM_MEMCFG"],
-                    tt_dtype=ttnn.bfloat8_b,
-                )
-                for i in range(len(self.devices)):
-                    k_cache.append(tt_attn_cache.to(self.devices[i], self.model_config["DRAM_MEMCFG"]))
-                for i in range(len(self.devices)):
-                    v_cache.append(tt_attn_cache.to(self.devices[i], self.model_config["DRAM_MEMCFG"]))
 
-                ttnn.experimental.tensor.dump_tensor(
-                    str(kvcache_path),
-                    tt_attn_cache,
-                )
+            attn_cache = torch.zeros(attn_cache_shape)
+            k_cache = ttnn.as_tensor(
+                tensor=attn_cache,
+                dtype=ttnn.bfloat8_b,
+                layout=ttnn.TILE_LAYOUT,
+                device=self.device_mesh,
+                memory_config=self.model_config["DRAM_MEMCFG"],
+                mesh_mapper=ReplicateTensorToMesh(self.device_mesh),
+                # cache_file_name=kv_cache_path,
+            )
+
+            v_cache = ttnn.as_tensor(
+                tensor=attn_cache,
+                dtype=ttnn.bfloat8_b,
+                layout=ttnn.TILE_LAYOUT,
+                device=self.device_mesh,
+                memory_config=self.model_config["DRAM_MEMCFG"],
+                mesh_mapper=ReplicateTensorToMesh(self.device_mesh),
+                # cache_file_name=kv_cache_path,
+            )
+
             self.layer_past = (
                 (
                     k_cache,
