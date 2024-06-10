@@ -38,7 +38,7 @@ jobs:
     environment: dev
     runs-on: build
     container:
-      image: ghcr.io/${{ github.repository }}/${{ matrix.arch }}:${{ needs.set-image.outputs.IMAGE_TAG }}
+      image: ghcr.io/${{ github.repository }}/${{ matrix.arch }}:${{ needs.set-docker-image-tag.outputs.IMAGE_TAG }}
       env: 
         TT_METAL_HOME: ${{ env.TT_METAL_HOME }}
         CONFIG: ${{ env.CONFIG }}
