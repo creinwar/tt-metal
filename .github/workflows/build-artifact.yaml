@@ -38,20 +38,20 @@ jobs:
     environment: dev
     runs-on: build-docker
     container:
-      image: ghcr.io/${{ github.repository }}/${{ matrix.arch }}:${{ needs.set-docker-image-tag.outputs.tag }}
+      image: ghcr.io/${{ github.repository }}/ubuntu-20.04-amd64:${{ needs.set-docker-image-tag.outputs.tag }}
       env: 
-        TT_METAL_HOME: ${{ env.TT_METAL_HOME }}
         CONFIG: ${{ env.CONFIG }}
-        ARCH_NAME: ${{ env.ARCH_NAME }}
-        PYTHONPATH: ${{ env.TT_METAL_HOME }}
+        ARCH_NAME: ${{ matrix.arch }}
+        PYTHONPATH: ${{ github.workspace }}
         SILENT: ${{ env.SILENT }}
         VERBOSE: ${{ env.VERBOSE }}
+        TT_METAL_HOME: ${{ github.workspace }}
       options: >
         -v /home:/home
-        -v /dev/hugepages-1G:/dev/hugepages-1G
         -v /etc/group:/etc/group:ro
         -v /etc/passwd:/etc/passwd:ro
         -v /etc/shadow:/etc/shadow:ro
+        -u ${UID}:${GID}
     steps:
       - uses: tenstorrent-metal/metal-workflows/.github/actions/checkout-with-submodule-lfs@v2.0.0
       - name: Set up dynamic env vars for build
