@@ -48,9 +48,10 @@ jobs:
         TT_METAL_HOME: ${{ github.workspace }}
       options: >
         -v /home:/home
-        -v /etc/group:/etc/group:ro
-        -v /etc/passwd:/etc/passwd:ro
-        -v /etc/shadow:/etc/shadow:ro
+        -v /etc/group:/etc/group
+        -v /etc/passwd:/etc/passwd
+        -v /etc/shadow:/etc/shadow
+
     steps:
       - uses: tenstorrent-metal/metal-workflows/.github/actions/checkout-with-submodule-lfs@v2.0.0
       - name: Set up dynamic env vars for build
