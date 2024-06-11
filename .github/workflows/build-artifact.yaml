@@ -61,10 +61,10 @@ jobs:
       - name: Build Docker Image
         id: docker-tag
         run: |
-          docker build -f dockerfile/tt-metallium.Dockerfile 
-                      --build-arg ARCH_NAME=${{ env.ARCH_NAME }}
-                      --build-arg IMAGE_TAG=${{ env.BASE_IMAGE_TAG }}
-                      --build-arg GITHUB_BRANCH=${{ env.GITHUB_BRANCH }}
+          docker build -f dockerfile/tt-metallium.Dockerfile \
+                      --build-arg ARCH_NAME=${{ env.ARCH_NAME }} \
+                      --build-arg IMAGE_TAG=${{ env.BASE_IMAGE_TAG }} \
+                      --build-arg GITHUB_BRANCH=${{ env.GITHUB_BRANCH }} \
                       -t ghcr.io/${{ github.repository }}/${{ env.TT_METAL_DOCKER_IMAGE }}:${{ env.OUTPUT_IMAGE_TAG }} .
       - name: Push Docker image to GitHub Container Registry
         run: |
