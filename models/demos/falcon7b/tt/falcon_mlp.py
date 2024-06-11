@@ -311,7 +311,7 @@ class TtFalconMLPDecode(nn.Module):
                 ttnn.experimental.tensor.falcon_dense_h_to_4h_matmul(
                     x[device_id],
                     self.dense_h_to_4h_weights[device_id],
-                    # fused_activation=[ttnn.experimental.tensor.FusibleActivation.GELU, True],
+                    fused_activation=[ttnn.experimental.tensor.FusibleActivation.GELU, True],
                     output_mem_config=self.model_config["DENSE_H_TO_4H_MM_OUTPUT_MEMCFG"],
                     output_dtype=self.model_config["DENSE_H_TO_4H_MM_OUTPUT_DTYPE"],
                 )
@@ -320,10 +320,10 @@ class TtFalconMLPDecode(nn.Module):
         self.out_ff1 = [ttnn.experimental.tensor.clone(hidden_states[i]) for i in range(self.num_devices)]
         # for i in range(self.num_devices):
         #     hidden_states[i] = ttnn.experimental.tensor.gelu(hidden_states[i])
-        for i in range(self.num_devices):
-            hidden_states[i] = tt2torch_tensor(hidden_states[i])
-            hidden_states[i] = torch.nn.functional.gelu(hidden_states[i])
-            hidden_states[i] = torch2tt_tensor(hidden_states[i], self.devices[i])
+        # for i in range(self.num_devices):
+        #     hidden_states[i] = tt2torch_tensor(hidden_states[i])
+        #     hidden_states[i] = torch.nn.functional.gelu(hidden_states[i])
+        #     hidden_states[i] = torch2tt_tensor(hidden_states[i], self.devices[i])
         self.out_gelu = [ttnn.experimental.tensor.clone(hidden_states[i]) for i in range(self.num_devices)]
         for device_id in range(self.num_devices):
             hidden_states[device_id] = ttnn.experimental.tensor.falcon_dense_4h_to_h_matmul(
