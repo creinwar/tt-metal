@@ -31,7 +31,7 @@ jobs:
     env:
       TT_METAL_ENV: ${{ vars.TT_METAL_ENV }}
       ARCH_NAME: ${{ matrix.arch }}
-      GITHUB_BRANCH: ${{ github.ref }}
+      GITHUB_BRANCH: ${{ github.ref_name }}
       TT_METAL_DOCKER_IMAGE: ubuntu-20.04-amd64
     environment: dev
     runs-on: build-docker
