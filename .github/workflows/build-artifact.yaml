@@ -51,6 +51,7 @@ jobs:
         -v /etc/group:/etc/group
         -v /etc/passwd:/etc/passwd
         -v /etc/shadow:/etc/shadow
+        -u ubuntu:1000
 
     steps:
       - uses: tenstorrent-metal/metal-workflows/.github/actions/checkout-with-submodule-lfs@v2.0.0
