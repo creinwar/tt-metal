@@ -27,8 +27,23 @@ DeviceMesh::DeviceMesh(const DeviceGrid& device_grid, const DeviceIds &device_id
 
     //TODO: for DevicePool feature delete CreateDevices and merge with this function
     //TODO: should there be an explicit CloseDevices call somewhere?
-    managed_devices = tt::tt_metal::detail::CreateDevices(device_ids, 1, l1_small_size);
     bool is_galaxy = tt::Cluster::instance().is_galaxy_cluster();
+    std::vector<chip_id_t> mmio_device_ids = {};
+    if (is_galaxy) {
+        mmio_device_ids.push_back(0);
+        if (num_requested_devices > 8) {
+            mmio_device_ids.push_back(1);
+        }
+        if (num_requested_devices > 16) {
+            mmio_device_ids.push_back(2);
+        }
+        if (num_requested_devices > 24) {
+            mmio_device_ids.push_back(3);
+        }
+    } else {
+        mmio_device_ids = device_ids;
+    }
+    managed_devices = tt::tt_metal::detail::CreateDevices(mmio_device_ids, 1, l1_small_size);
     if (is_galaxy) {
         DeviceIds galaxy_device_ids;
         char *env_var_str = std::getenv("TT_METAL_GALAXY_CHIPS");
