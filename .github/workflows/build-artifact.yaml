@@ -79,9 +79,9 @@ jobs:
           image: ghcr.io/${{ github.repository }}/${{ env.TT_METAL_DOCKER_IMAGE }}:${{ env.OUTPUT_IMAGE_TAG }}
           options: -u ${{ env.RUNNER_UID }}:${{ env.RUNNER_GID }} -v ${{ github.workspace }}:${{ github.workspace }} -e CONFIG=${{ env.CONFIG }} -e ARCH_NAME=${{ matrix.arch }} -e TT_METAL_HOME=${{ github.workspace }} -w ${{ github.workspace }}
           run: |
-            cmake -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++-17
-            cmake --build build --target tests \
-            cmake --build build --target install
+            cmake -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++-17 \ 
+            && cmake --build build --target tests \
+            && cmake --build build --target install
       - name: 'Tar files'
         run: tar -cvf ttm_${{ matrix.arch }}.tar build/hw build/lib tt_eager/tt_lib/*.so ttnn/ttnn/*.so build/programming_examples build/test build/tools runtime
       - name: 'Upload Artifact'
