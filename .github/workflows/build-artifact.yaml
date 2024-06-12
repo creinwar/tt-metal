@@ -75,7 +75,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
           registry: ghcr.io
           image: ghcr.io/${{ github.repository }}/${{ env.TT_METAL_DOCKER_IMAGE }}:${{ env.OUTPUT_IMAGE_TAG }}
-          options: -v ${{ github.workspace }}:${{ github.workspace }} -e CONFIG=${{ env.CONFIG }} -e ARCH_NAME=${{ matrix.arch }} -e TT_METAL_HOME=${{ github.workspace }}
+          options: -v ${{ github.workspace }}:${{ github.workspace }} -e CONFIG=${{ env.CONFIG }} -e ARCH_NAME=${{ matrix.arch }} -e TT_METAL_HOME=${{ github.workspace }} -w ${{ github.workspace }}
           run: |
             cmake -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++-17
             cmake --build build --target tests \
