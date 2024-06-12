@@ -13,10 +13,4 @@ RUN cd tt-metal \
     && pip install -e . \
     && pip install -e ttnn
 
-SHELL ["/bin/bash", "-c"]
-
-RUN useradd -ms /bin/bash ubuntu
-USER ubuntu
-WORKDIR /home/ubuntu
-
 CMD ["tail", "-f", "/dev/null"]

@@ -40,6 +40,8 @@ jobs:
       - name: Set up dynamic env vars for build
         run: |
           echo "TT_METAL_HOME=$(pwd)" >> $GITHUB_ENV
+          echo "RUNNER_UID=$(id -u)" >> $GITHUB_ENV
+          echo "RUNNER_GID=$(id -g)" >> $GITHUB_ENV
       - name: Update submodules
         run: |
           git submodule update --init --recursive
@@ -75,7 +77,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
           registry: ghcr.io
           image: ghcr.io/${{ github.repository }}/${{ env.TT_METAL_DOCKER_IMAGE }}:${{ env.OUTPUT_IMAGE_TAG }}
-          options: -v ${{ github.workspace }}:${{ github.workspace }} -e CONFIG=${{ env.CONFIG }} -e ARCH_NAME=${{ matrix.arch }} -e TT_METAL_HOME=${{ github.workspace }} -w ${{ github.workspace }}
+          options: -u ${{ env.RUNNER_UID }}:${{ env.RUNNER_GID }} -v ${{ github.workspace }}:${{ github.workspace }} -e CONFIG=${{ env.CONFIG }} -e ARCH_NAME=${{ matrix.arch }} -e TT_METAL_HOME=${{ github.workspace }} -w ${{ github.workspace }}
           run: |
             cmake -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++-17
             cmake --build build --target tests \
