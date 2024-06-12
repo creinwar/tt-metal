@@ -51,7 +51,7 @@ class TtFalconCausalLM(TtFalconModelShared):
             device=device_mesh,
             memory_config=self.model_config["LM_HEAD_MM_WEIGHTS_MEMCFG"],
             mesh_mapper=ShardTensorToMesh(device_mesh, dim=3),
-            # cache_file_name=lm_head_path,
+            cache_file_name=lm_head_path,
             preprocess=lambda x: torch.transpose(x.reshape(1, 1, *x.shape), -2, -1),
         )
 
