@@ -63,7 +63,7 @@ jobs:
       - name: Build Docker Image
         id: docker-tag
         run: |
-          docker build -f dockerfile/tt-metallium.Dockerfile \
+          docker build -f dockerfile/tt-metalium.Dockerfile \
                       --build-arg ARCH_NAME=${{ env.ARCH_NAME }} \
                       --build-arg IMAGE_TAG=${{ env.BASE_IMAGE_TAG }} \
                       --build-arg GITHUB_BRANCH=${{ env.GITHUB_BRANCH }} \

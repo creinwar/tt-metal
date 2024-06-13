@@ -1,6 +1,6 @@
 ARG IMAGE_TAG=latest
 
-FROM ghcr.io/tenstorrent/tt-metal/ubuntu-20.04-amd64:${IMAGE_TAG}
+FROM ghcr.io/tenstorrent/tt-metal/tt-metalium/ubuntu-20.04-amd64:${IMAGE_TAG}
 
 ARG ARCH_NAME=grayskull
 ARG GITHUB_BRANCH=main
