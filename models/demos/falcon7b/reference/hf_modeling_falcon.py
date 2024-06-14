@@ -534,7 +534,14 @@ class FalconDecoderLayer(nn.Module):
             attention_layernorm_out = self.ln_attn(hidden_states)
             mlp_layernorm_out = self.ln_mlp(hidden_states)
         else:
-            attention_layernorm_out = self.input_layernorm(hidden_states)
+            # attention_layernorm_out = self.input_layernorm(hidden_states)
+            attention_layernorm_out = torch.nn.functional.layer_norm(
+                hidden_states, (4544,), eps=self.config.layer_norm_epsilon
+            )
+            self.out_ln_eps = torch.clone(attention_layernorm_out)
+            attention_layernorm_out = attention_layernorm_out * self.input_layernorm.weight
+            self.out_ln_g = torch.clone(attention_layernorm_out)
+            attention_layernorm_out = attention_layernorm_out + self.input_layernorm.bias
 
         # Self attention.
         attn_outputs = self.self_attention(

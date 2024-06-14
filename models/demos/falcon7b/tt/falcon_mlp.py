@@ -318,12 +318,12 @@ class TtFalconMLPDecode(nn.Module):
             )
             x[device_id].deallocate()
         self.out_ff1 = [ttnn.experimental.tensor.clone(hidden_states[i]) for i in range(self.num_devices)]
-        for i in range(self.num_devices):
-            hidden_states[i] = ttnn.experimental.tensor.gelu(hidden_states[i])
         # for i in range(self.num_devices):
-        #     hidden_states[i] = tt2torch_tensor(hidden_states[i])
-        #     hidden_states[i] = torch.nn.functional.gelu(hidden_states[i])
-        #     hidden_states[i] = torch2tt_tensor(hidden_states[i], self.devices[i])
+        #    hidden_states[i] = ttnn.experimental.tensor.gelu(hidden_states[i])
+        for i in range(self.num_devices):
+            hidden_states[i] = tt2torch_tensor(hidden_states[i])
+            hidden_states[i] = torch.nn.functional.gelu(hidden_states[i])
+            hidden_states[i] = torch2tt_tensor(hidden_states[i], self.devices[i])
         self.out_gelu = [ttnn.experimental.tensor.clone(hidden_states[i]) for i in range(self.num_devices)]
         for device_id in range(self.num_devices):
             hidden_states[device_id] = ttnn.experimental.tensor.falcon_dense_4h_to_h_matmul(

@@ -199,6 +199,20 @@ def run_test_FalconModel_inference(
         for layer in range(num_layers):
             print("layer:", layer)
             print(
+                "ln_eps_out:",
+                comp_pcc(
+                    pytorch_FalconModel.model.h[layer].out_ln_eps[batch * device_id : batch * (device_id + 1)],
+                    tt2torch_tensor(tt_FalconModel.layers[layer].out_ln_eps[device_id]).squeeze(1).transpose(0, 1),
+                ),
+            )
+            print(
+                "ln_g_out:",
+                comp_pcc(
+                    pytorch_FalconModel.model.h[layer].out_ln_g[batch * device_id : batch * (device_id + 1)],
+                    tt2torch_tensor(tt_FalconModel.layers[layer].out_ln_g[device_id]).squeeze(1).transpose(0, 1),
+                ),
+            )
+            print(
                 "hidden_states:",
                 comp_pcc(
                     pytorch_FalconModel.model.h[layer].self_attention.out_hidden_states[
@@ -293,9 +307,10 @@ def run_test_FalconModel_inference(
     (
         ("prefill", 1, 128, 0),
         ("decode", 32, 1, 128),
+        ("decode", 32, 1, 1024),
         ("decode", 32, 1, 2047),
     ),
-    ids=["prefill_seq128_batch1", "decode_batch32", "decode_batch32_2047"],
+    ids=["prefill_seq128_batch1", "decode_batch32", "decode_batch32_1024", "decode_batch32_2047"],
 )
 @pytest.mark.parametrize(
     "num_layers, pcc",

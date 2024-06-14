@@ -657,6 +657,8 @@ class TtFalconAttentionDecode(nn.Module):
 
         padded_layer_past_len = nearest_32(layer_past_len + 1)
 
+        self.out_hidden_states = [ttnn.experimental.tensor.clone(hidden_states[i]) for i in range(self.num_devices)]
+
         batch = hidden_states[0].get_legacy_shape()[2]
         q_len = hidden_states[0].get_legacy_shape()[0]
         # We always store max_position_embeddings for kv_cache,
@@ -698,7 +700,6 @@ class TtFalconAttentionDecode(nn.Module):
         query_layer = self.rotary_embedding(query_layer, layer_past_len)
         key_layer = self.rotary_embedding(key_layer, layer_past_len)
 
-        self.out_hidden_states = [ttnn.experimental.tensor.clone(hidden_states[i]) for i in range(self.num_devices)]
         self.out_key_layer = [ttnn.experimental.tensor.clone(key_layer[i]) for i in range(self.num_devices)]
         self.out_value_layer = [ttnn.experimental.tensor.clone(value_layer[i]) for i in range(self.num_devices)]
 

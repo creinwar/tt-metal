@@ -10,6 +10,7 @@ from models.demos.falcon7b.tt.falcon_attention import TtFalconAttentionDecode, T
 from models.demos.falcon7b.tt.falcon_mlp import TtFalconMLPDecode, TtFalconMLPPrefill
 from models.demos.falcon7b.tt.model_utils import get_weights_cached
 from torch import nn
+from models.utility_functions import tt2torch_tensor, torch2tt_tensor
 
 
 class TtFalconDecoderLayer(nn.Module):
@@ -92,8 +93,8 @@ class TtFalconDecoderLayer(nn.Module):
         layernorm_weights_str = f"{layer_name}.input_layernorm.weight"
         layernorm_bias_str = f"{layer_name}.input_layernorm.bias"
 
-        # self.lnweight = self.state_dict[layernorm_weights_str]
-        # self.lnbias = self.state_dict[layernorm_bias_str]
+        self.lnweight = self.state_dict[layernorm_weights_str]
+        self.lnbias = self.state_dict[layernorm_bias_str]
 
         self.layernorm_gamma = get_weights_cached(
             devices,
@@ -165,14 +166,81 @@ class TtFalconDecoderLayer(nn.Module):
         #     layernorm_output.append(tt2torch_tensor(hidden_states[i]))
         #     layernorm_output[i] = torch.nn.functional.layer_norm(layernorm_output[i], (4544,), weight=self.lnweight, bias=self.lnbias, eps=self.layernorm_eps)
         #     layernorm_output[i] = torch2tt_tensor(layernorm_output[i], self.devices[i])
+
+        # ln_compute_config = ttnn.experimental.tensor.WormholeComputeKernelConfig(
+        #     math_fidelity=ttnn.experimental.tensor.MathFidelity.LoFi,
+        #     math_approx_mode=True,
+        #     fp32_dest_acc_en=True,
+        #     packer_l1_acc=False,
+        # )
+
+        sharded_mem_cfg = ttnn.experimental.tensor.MemoryConfig(
+            ttnn.experimental.tensor.TensorMemoryLayout.WIDTH_SHARDED,
+            ttnn.experimental.tensor.BufferType.L1,
+            ttnn.experimental.tensor.ShardSpec(
+                ttnn.experimental.tensor.CoreRangeSet(
+                    {
+                        ttnn.experimental.tensor.CoreRange(
+                            ttnn.experimental.tensor.CoreCoord(0, 0),
+                            ttnn.experimental.tensor.CoreCoord(0, 1),
+                        ),
+                    }
+                ),
+                [
+                    32,
+                    4544 // 2,
+                ],
+                ttnn.experimental.tensor.ShardOrientation.ROW_MAJOR,
+                False,
+            ),
+        )
+
+        # prog_cfg = ttnn.experimental.operations.primary.LayerNormShardedMultiCoreProgramConfig(
+        #     compute_with_storage_grid_size=[8,8],
+        #     subblock_w=8,
+        #     block_h=32 // 32 // 1,
+        #     block_w=4544 // 32 // 2,
+        #     inplace=True,
+        # )
+
+        ln_in = []
+
+        for i in range(self.num_devices):
+            ln_in.append(
+                ttnn.experimental.tensor.interleaved_to_sharded(hidden_states[i], sharded_mem_config=sharded_mem_cfg)
+            )
+
+        breakpoint()
+
         for i in range(self.num_devices):
             layernorm_output.append(
                 ttnn.experimental.tensor.layernorm(
-                    hidden_states[i],
+                    ln_in[i],
                     self.layernorm_eps,
-                    output_mem_config=self.model_config["INPUT_LAYERNORM_OUTPUT_MEMCFG"],
+                    output_mem_config=sharded_mem_cfg,
+                    # program_config=prog_cfg
                 )
             )
+
+        breakpoint()
+
+        for i in range(self.num_devices):
+            layernorm_output[i] = ttnn.experimental.tensor.sharded_to_interleaved(
+                layernorm_output[i], output_mem_config=self.model_config["INPUT_LAYERNORM_OUTPUT_MEMCFG"]
+            )
+
+        # for i in range(self.num_devices):
+        #     layernorm_output.append(
+        #         ttnn.experimental.tensor.layernorm(
+        #             hidden_states[i],
+        #             self.layernorm_eps,
+        #             output_mem_config=self.model_config["INPUT_LAYERNORM_OUTPUT_MEMCFG"],
+        #             #compute_kernel_config = ln_compute_config
+        #         )
+        #     )
+
+        self.out_ln_eps = [ttnn.experimental.tensor.clone(layernorm_output[i]) for i in range(self.num_devices)]
+
         # for i in range(self.num_devices):
         #     layernorm_output[i] = ttnn.experimental.tensor.mul(layernorm_output[i], self.layernorm_gamma[i], output_mem_config=self.model_config["INPUT_LAYERNORM_OUTPUT_MEMCFG"])
         # for i in range(self.num_devices):
@@ -185,6 +253,9 @@ class TtFalconDecoderLayer(nn.Module):
                 ttnn.experimental.tensor.BcastOpDim.H,
                 output_mem_config=self.model_config["INPUT_LAYERNORM_OUTPUT_MEMCFG"],
             )
+
+        self.out_ln_g = [ttnn.experimental.tensor.clone(layernorm_output[i]) for i in range(self.num_devices)]
+
         for i in range(self.num_devices):
             layernorm_output[i] = ttnn.experimental.tensor.bcast(
                 layernorm_output[i],
