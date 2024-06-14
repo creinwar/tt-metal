@@ -40,7 +40,7 @@ inline void llk_setup_operands(bool apply_delay=false) {
     }
 
     if (apply_delay) {
-        tiles_proc_delay = 6144;  // Delay odd rows of cores
+        tiles_proc_delay = 2 * 6144;  // Delay odd rows of cores
     }
 }
 
@@ -61,8 +61,8 @@ inline void llk_wait_tiles(int operand, std::int32_t num_tiles) {
     } while (num_tiles_recv < num_tiles_u);
 
     // uncomment to add delay on each block and avoid the hang
-    // if (operand == tt::CB::c_in1) {
-    if (operand == tt::CB::c_in1 && (apply_cnt == 0)) {
+    if (operand == tt::CB::c_in1) {
+    //if (operand == tt::CB::c_in1 && (apply_cnt == 0)) {
         // Apply delay only if second operand has arrived
         apply_cnt++;
         wait(tiles_proc_delay);
