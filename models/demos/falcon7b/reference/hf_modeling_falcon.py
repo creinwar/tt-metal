@@ -573,7 +573,11 @@ class FalconDecoderLayer(nn.Module):
         if self.config.new_decoder_architecture or self.config.parallel_attn:
             mlp_output += attention_output
 
+        self.out_attnadd = torch.clone(mlp_output)
+
         output = dropout_add(mlp_output, residual, self.config.hidden_dropout, training=self.training)
+
+        self.out_resadd = torch.clone(output)
 
         if use_cache:
             outputs = (output,) + outputs

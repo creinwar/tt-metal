@@ -92,6 +92,9 @@ class TtFalconDecoderLayer(nn.Module):
         layernorm_weights_str = f"{layer_name}.input_layernorm.weight"
         layernorm_bias_str = f"{layer_name}.input_layernorm.bias"
 
+        # self.lnweight = self.state_dict[layernorm_weights_str]
+        # self.lnbias = self.state_dict[layernorm_bias_str]
+
         self.layernorm_gamma = get_weights_cached(
             devices,
             model_config,
@@ -100,6 +103,7 @@ class TtFalconDecoderLayer(nn.Module):
             weight_config_str="INPUT_LAYERNORM_WEIGHTS",
             weights_to_cache=(self.state_dict[layernorm_weights_str] if self.state_dict else None),
             padzero=True,
+            # padzero=True,
         )
         self.layernorm_beta = get_weights_cached(
             devices,
@@ -109,7 +113,33 @@ class TtFalconDecoderLayer(nn.Module):
             weight_config_str="INPUT_LAYERNORM_BIAS",
             weights_to_cache=(self.state_dict[layernorm_bias_str] if self.state_dict else None),
             padzero=True,
+            # padzero=True,
         )
+
+        # for i in range(self.num_devices):
+        #     self.layernorm_gamma[i] = ttnn.experimental.tensor.repeat(
+        #         self.layernorm_gamma[i],
+        #         [1, 1, 32, 1],
+        #         output_mem_config=self.model_config["INPUT_LAYERNORM_WEIGHTS_MEMCFG"],
+        #     )
+        # for i in range(self.num_devices):
+        #     self.layernorm_beta[i] = ttnn.experimental.tensor.repeat(
+        #         self.layernorm_beta[i],
+        #         [1, 1, 32, 1],
+        #         output_mem_config=self.model_config["INPUT_LAYERNORM_BIAS_MEMCFG"],
+        #     )
+        # for i in range(self.num_devices):
+        #     self.layernorm_gamma[i] = ttnn.experimental.tensor.tilize(
+        #         self.layernorm_gamma[i],
+        #         output_mem_config=self.model_config["INPUT_LAYERNORM_WEIGHTS_MEMCFG"],
+        #         output_dtype=self.model_config["INPUT_LAYERNORM_WEIGHTS_DTYPE"],
+        #     )
+        # for i in range(self.num_devices):
+        #     self.layernorm_beta[i] = ttnn.experimental.tensor.tilize(
+        #         self.layernorm_beta[i],
+        #         output_mem_config=self.model_config["INPUT_LAYERNORM_BIAS_MEMCFG"],
+        #         output_dtype=self.model_config["INPUT_LAYERNORM_BIAS_DTYPE"],
+        #     )
 
         self.layernorm_eps = config.layer_norm_epsilon
 
@@ -130,6 +160,11 @@ class TtFalconDecoderLayer(nn.Module):
         assert not output_attentions
 
         layernorm_output = []
+        # layernorm_output2 = []
+        # for i in range(self.num_devices):
+        #     layernorm_output.append(tt2torch_tensor(hidden_states[i]))
+        #     layernorm_output[i] = torch.nn.functional.layer_norm(layernorm_output[i], (4544,), weight=self.lnweight, bias=self.lnbias, eps=self.layernorm_eps)
+        #     layernorm_output[i] = torch2tt_tensor(layernorm_output[i], self.devices[i])
         for i in range(self.num_devices):
             layernorm_output.append(
                 ttnn.experimental.tensor.layernorm(
@@ -138,6 +173,10 @@ class TtFalconDecoderLayer(nn.Module):
                     output_mem_config=self.model_config["INPUT_LAYERNORM_OUTPUT_MEMCFG"],
                 )
             )
+        # for i in range(self.num_devices):
+        #     layernorm_output[i] = ttnn.experimental.tensor.mul(layernorm_output[i], self.layernorm_gamma[i], output_mem_config=self.model_config["INPUT_LAYERNORM_OUTPUT_MEMCFG"])
+        # for i in range(self.num_devices):
+        #     layernorm_output[i] = ttnn.experimental.tensor.add(layernorm_output[i], self.layernorm_beta[i], output_mem_config=self.model_config["INPUT_LAYERNORM_OUTPUT_MEMCFG"])
         for i in range(self.num_devices):
             layernorm_output[i] = ttnn.experimental.tensor.bcast(
                 layernorm_output[i],
@@ -206,6 +245,8 @@ class TtFalconDecoderLayer(nn.Module):
             mlp_output[i].deallocate()
             attention_output[i].deallocate()
 
+        self.out_attnadd = [ttnn.experimental.tensor.clone(output[i]) for i in range(self.num_devices)]
+
         # dropout_add
         # For inference, this is just add
         for i in range(self.num_devices):
@@ -215,6 +256,8 @@ class TtFalconDecoderLayer(nn.Module):
                 memory_config=self.model_config["DROPOUT_ADD_OUTPUT_MEMCFG"],
             )
             residual[i].deallocate()
+
+        self.out_resadd = [ttnn.experimental.tensor.clone(output[i]) for i in range(self.num_devices)]
 
         if use_cache:
             outputs = (output, layer_present)

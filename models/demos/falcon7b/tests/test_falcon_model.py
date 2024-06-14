@@ -263,6 +263,20 @@ def run_test_FalconModel_inference(
                     .transpose(0, 1),
                 ),
             )
+            print(
+                "attnadd_out:",
+                comp_pcc(
+                    pytorch_FalconModel.model.h[layer].out_attnadd[batch * device_id : batch * (device_id + 1)],
+                    tt2torch_tensor(tt_FalconModel.layers[layer].out_attnadd[device_id]).squeeze(1).transpose(0, 1),
+                ),
+            )
+            print(
+                "resadd_out:",
+                comp_pcc(
+                    pytorch_FalconModel.model.h[layer].out_resadd[batch * device_id : batch * (device_id + 1)],
+                    tt2torch_tensor(tt_FalconModel.layers[layer].out_resadd[device_id]).squeeze(1).transpose(0, 1),
+                ),
+            )
 
     breakpoint()
 
