@@ -5,8 +5,8 @@
 #include "dataflow_api.h"
 #include "debug/dprint.h"
 #include "tt_metal/impl/dispatch/kernels/packet_queue.hpp"
+#include "tt_metal/impl/dispatch/kernels/cq_helpers.hpp"
 #include "tests/tt_metal/tt_metal/perf_microbenchmark/routing/kernels/traffic_gen.hpp"
-
 
 packet_input_queue_state_t input_queue;
 packet_output_queue_state_t output_queues[MAX_SWITCH_FAN_OUT];
@@ -223,7 +223,15 @@ void kernel_main() {
     uint64_t iter = 0;
     uint64_t start_timestamp = get_timestamp();
     uint32_t progress_timestamp = start_timestamp & 0xFFFFFFFF;
+#if defined(COMPILE_FOR_IDLE_ERISC)
+    uint32_t heartbeat = 0;
+#endif
     while (!all_outputs_finished && !timeout) {
+#if defined(COMPILE_FOR_IDLE_ERISC)
+        if (early_exit())
+            return;
+        RISC_POST_HEARTBEAT(heartbeat);
+#endif
         iter++;
         if (timeout_cycles > 0) {
             uint32_t cycles_since_progress = get_timestamp_32b() - progress_timestamp;

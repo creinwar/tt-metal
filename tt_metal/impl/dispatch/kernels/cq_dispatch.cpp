@@ -810,6 +810,8 @@ static void process_wait() {
     if (wait) {
         while (!wrap_ge(*sem_addr, count)) {
 #if defined(COMPILE_FOR_IDLE_ERISC)
+            if (early_exit())
+                return;
             RISC_POST_HEARTBEAT(heartbeat);
 #endif
         }
@@ -1010,6 +1012,9 @@ void kernel_main() {
         cq_write_interface.completion_fifo_wr_toggle = completion_queue_wr_ptr_and_toggle >> 31;
     }
     bool done = false;
+#if defined(COMPILE_FOR_IDLE_ERISC)
+    uint32_t heartbeat = 0;
+#endif
     while (!done) {
         DeviceZoneScopedND("CQ-DISPATCH", block_noc_writes_to_clear, rd_block_idx );
         if (cmd_ptr == cb_fence) {
@@ -1021,6 +1026,12 @@ void kernel_main() {
                 my_dispatch_cb_sem_id>(
                 cmd_ptr, cb_fence, block_noc_writes_to_clear, block_next_start_addr, rd_block_idx);
         }
+
+#if defined(COMPILE_FOR_IDLE_ERISC)
+        if (early_exit())
+            return;
+        RISC_POST_HEARTBEAT(heartbeat);
+#endif
 
         done = is_d_variant ? process_cmd_d(cmd_ptr) : process_cmd_h(cmd_ptr);
 
@@ -1045,11 +1056,6 @@ void kernel_main() {
         // components use.
         noc_semaphore_inc(get_noc_addr_helper(upstream_noc_xy, get_semaphore(upstream_dispatch_cb_sem_id)), 0x80000000);
     }
-
-#if defined(COMPILE_FOR_IDLE_ERISC)
-    uint32_t heartbeat = 0;
-    RISC_POST_HEARTBEAT(heartbeat);
-#endif
 
     // Release any held pages from the last block
     if (rd_block_idx != wr_block_idx) {
