@@ -56,7 +56,6 @@ jobs:
         - /etc/shadow:/etc/shadow:ro
       options: 
         -w ${{ github.workspace }}
-        -u $(id -u):$(id -g)
     steps:
       - uses: tenstorrent-metal/metal-workflows/.github/actions/checkout-with-submodule-lfs@v2.0.0
       - name: Set up dynamic env vars for build
