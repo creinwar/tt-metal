@@ -11,8 +11,8 @@ jobs:
       CONFIG: ci
       SILENT: 0
       VERBOSE: 1
-      TT_METAL_DOCKER_IMAGE: ubuntu-20.04-amd64
-      TT_METAL_DOCKER_IMAGE_TAG: latest
+      TT_METAL_DOCKER_IMAGE: tt-metalium/ubuntu-20.04-amd64
+      TT_METAL_DOCKER_IMAGE_TAG: ${{ github.sha }}
     environment: dev
     runs-on: build-docker
     steps:
@@ -26,15 +26,15 @@ jobs:
       - name: Build Docker image
         run: |
           ./scripts/docker/build_docker_image.sh ${{ env.TT_METAL_DOCKER_IMAGE }}:${{ env.TT_METAL_DOCKER_IMAGE_TAG }}
-      - name: Determine Docker Image Tag
-        id: set-image
-        run: |
-          if [[ "${GITHUB_REF_NAME}" == "main" ]]; then
-            echo "IMAGE_TAG=latest" >> $GITHUB_ENV
-          else
-            echo "IMAGE_TAG=${GITHUB_ACTOR}" >> $GITHUB_ENV
-          fi
+      # - name: Determine Docker Image Tag
+      #   id: set-image
+      #   run: |
+      #     if [[ "${GITHUB_REF_NAME}" == "main" ]]; then
+      #       echo "IMAGE_TAG=latest" >> $GITHUB_ENV
+      #     else
+      #       echo "IMAGE_TAG=dev-${GITHUB_ACTOR}" >> $GITHUB_ENV
+      #     fi
       - name: Push Docker image to GitHub Container Registry
         run: |
-          docker tag ${{ env.TT_METAL_DOCKER_IMAGE }}:${{ env.TT_METAL_DOCKER_IMAGE_TAG }} ghcr.io/${{ github.repository }}/tt-metalium/${{ env.TT_METAL_DOCKER_IMAGE }}:latest
-          docker push ghcr.io/${{ github.repository }}/tt-metalium/${{ env.TT_METAL_DOCKER_IMAGE }}:latest
+          docker tag ${{ env.TT_METAL_DOCKER_IMAGE }}:${{ env.TT_METAL_DOCKER_IMAGE_TAG }} ghcr.io/${{ github.repository }}/${{ env.TT_METAL_DOCKER_IMAGE }}:${{ env.TT_METAL_DOCKER_IMAGE_TAG}}
+          docker push ghcr.io/${{ github.repository }}/${{ env.TT_METAL_DOCKER_IMAGE }}:${{ env.TT_METAL_DOCKER_IMAGE_TAG}}
