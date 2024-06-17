@@ -76,6 +76,7 @@ jobs:
       - name: Upload tt-metalium docs
         uses: actions/upload-artifact@v4
         with:
+          name: tt-metalium-docs
           path: |
             tt-metalium
       - name: Package TT-NN Docs
@@ -94,9 +95,10 @@ jobs:
           #git checkout main
           #cd docs-test
           #cp -r tt-metalium/* docs/test/tt-metalium
-      - name: Upload tt-metalium docs
+      - name: Upload ttnn-docs
         uses: actions/upload-artifact@v4
         with:
+          name: ttnn-docs
           path: |
             ttnn-docs
       - name: Push docs to Docs repo for publishing
