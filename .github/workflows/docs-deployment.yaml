@@ -80,10 +80,10 @@ jobs:
             tt-metalium
       - name: Package TT-NN Docs
         run: |
-          mkdir ttnn
-          cp -Lr docs/doxygen_build ttnn
-          cp -Lr docs/source/ttnn/* ttnn
-          rm ttnn/conf.py  # Do not change conf.py
+          mkdir ttnn-docs
+          cp -Lr docs/doxygen_build ttnn-docs
+          cp -Lr docs/source/ttnn/* ttnn-docs
+          rm ttnn-docs/conf.py  # Do not change conf.py
           GITHUB_USER=dimitri-tenstorrent
           # git config --global user.email "tenstorrent-github-bot@tenstorrent.com"
           # git config --global user.name "tenstorrent-github-bot"
@@ -98,7 +98,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           path: |
-            ttnn
+            ttnn-docs
       - name: Push docs to Docs repo for publishing
         run: |
           echo "List files"
