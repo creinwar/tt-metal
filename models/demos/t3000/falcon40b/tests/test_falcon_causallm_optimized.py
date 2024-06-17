@@ -203,7 +203,9 @@ def run_test_FalconCausalLM_inference(
                 use_cache=use_cache,
             )
 
-            tt_out_tensor = ttnn.to_torch(tt_out, mesh_composer=ConcatMeshToTensor(device_mesh, dim=-1))
+            tt_out_tensor = ttnn.to_torch(
+                tt_out, device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=-1)
+            )
             tt_outs.append(tt_out_tensor.squeeze(1))
 
         tt_out = torch.vstack(tt_outs)
@@ -220,7 +222,7 @@ def run_test_FalconCausalLM_inference(
             layer_past_len=kv_cache_len,
             use_cache=use_cache,
         )
-        tt_out = ttnn.to_torch(tt_out, mesh_composer=ConcatMeshToTensor(device_mesh, dim=-1))
+        tt_out = ttnn.to_torch(tt_out, device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=-1))
         tt_out = tt_out.squeeze(0)
         tt_out = tt_out.transpose(0, 1)
 
@@ -231,8 +233,12 @@ def run_test_FalconCausalLM_inference(
     for i in range(num_layers):
         pytorch_layer_pres = pytorch_layer_present[i]
         tt_layer_pres = (
-            ttnn.to_torch(tt_layer_present[i][0], mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)),
-            ttnn.to_torch(tt_layer_present[i][1], mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)),
+            ttnn.to_torch(
+                tt_layer_present[i][0], device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)
+            ),
+            ttnn.to_torch(
+                tt_layer_present[i][1], device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)
+            ),
         )
         tt_layer_pres = (
             torch.repeat_interleave(

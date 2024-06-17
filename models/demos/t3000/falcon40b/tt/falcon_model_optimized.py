@@ -144,7 +144,7 @@ class TtFalconModelShared:
             input_ids = input_ids.reshape(batch_size, 1, 1, sequence_size)
 
         tt_inputs = ttnn.as_tensor(
-            tensor=input_ids.clone(),
+            tensor=input_ids,
             dtype=ttnn.uint32,
             layout=ttnn.ROW_MAJOR_LAYOUT,
             device=self.device_mesh,

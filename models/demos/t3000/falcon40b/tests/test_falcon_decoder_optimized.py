@@ -259,11 +259,11 @@ def run_test_FalconDecoder_inference(
         use_cache=use_cache,
     )
 
-    tt_out_tensor = ttnn.to_torch(tt_out, mesh_composer=ConcatMeshToTensor(device_mesh, dim=3))
+    tt_out_tensor = ttnn.to_torch(tt_out, device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=3))
 
     tt_layer_present = (
-        ttnn.to_torch(tt_layer_present[0], mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)),
-        ttnn.to_torch(tt_layer_present[1], mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)),
+        ttnn.to_torch(tt_layer_present[0], device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)),
+        ttnn.to_torch(tt_layer_present[1], device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)),
     )
 
     if llm_mode == "decode":

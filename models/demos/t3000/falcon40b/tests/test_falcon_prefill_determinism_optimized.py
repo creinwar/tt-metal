@@ -130,7 +130,10 @@ def run_test_falcon_prefill_end_to_end_determinism(
         )
         tt_outs.append(tt_out)
 
-    tt_outs = [ttnn.to_torch(tt_out, mesh_composer=ConcatMeshToTensor(device_mesh, dim=-1)) for tt_out in tt_outs]
+    tt_outs = [
+        ttnn.to_torch(tt_out, device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=-1))
+        for tt_out in tt_outs
+    ]
 
     logger.info("Done running TT Falcon model")
 
@@ -141,8 +144,12 @@ def run_test_falcon_prefill_end_to_end_determinism(
     reference_kv_cache = []
     for i in range(num_layers):
         tt_layer_pres = (
-            ttnn.to_torch(tt_layer_present[i][0], mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)),
-            ttnn.to_torch(tt_layer_present[i][1], mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)),
+            ttnn.to_torch(
+                tt_layer_present[i][0], device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)
+            ),
+            ttnn.to_torch(
+                tt_layer_present[i][1], device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)
+            ),
         )
         reference_kv_cache.append(tt_layer_pres)
 
@@ -177,7 +184,10 @@ def run_test_falcon_prefill_end_to_end_determinism(
             )
             tt_outs.append(tt_out)
 
-        tt_outs = [ttnn.to_torch(tt_out, mesh_composer=ConcatMeshToTensor(device_mesh, dim=-1)) for tt_out in tt_outs]
+        tt_outs = [
+            ttnn.to_torch(tt_out, device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=-1))
+            for tt_out in tt_outs
+        ]
         tt_out = tt_outs
 
         # Check outputs --------------------------------------------------------------------
@@ -190,8 +200,12 @@ def run_test_falcon_prefill_end_to_end_determinism(
         for i in range(num_layers):
             pytorch_layer_pres = reference_kv_cache[i]
             tt_layer_pres = (
-                ttnn.to_torch(tt_layer_present[i][0], mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)),
-                ttnn.to_torch(tt_layer_present[i][1], mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)),
+                ttnn.to_torch(
+                    tt_layer_present[i][0], device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)
+                ),
+                ttnn.to_torch(
+                    tt_layer_present[i][1], device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)
+                ),
             )
 
             k_cache_passes, output_pcc = comp_pcc(pytorch_layer_pres[0], tt_layer_pres[0], expected_pcc)

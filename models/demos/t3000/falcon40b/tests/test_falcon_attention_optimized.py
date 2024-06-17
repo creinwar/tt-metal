@@ -246,12 +246,12 @@ def run_test_FalconAttention_inference(
         use_cache=use_cache,
     )
 
-    tt_out_tensor = ttnn.to_torch(tt_out, mesh_composer=ConcatMeshToTensor(device_mesh, dim=3))
+    tt_out_tensor = ttnn.to_torch(tt_out, device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=3))
 
     # torch.cat([tt2torch_tensor(tt_o).squeeze(1) for tt_o in tt_out], -1)
     tt_layer_present = (
-        ttnn.to_torch(tt_layer_present[0], mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)),
-        ttnn.to_torch(tt_layer_present[1], mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)),
+        ttnn.to_torch(tt_layer_present[0], device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)),
+        ttnn.to_torch(tt_layer_present[1], device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)),
     )
 
     if llm_mode == "decode":
