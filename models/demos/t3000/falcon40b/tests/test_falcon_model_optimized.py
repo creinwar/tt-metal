@@ -201,7 +201,7 @@ def run_test_FalconModel_inference(
                 use_cache=use_cache,
             )
             # output of model is replicated
-            tensors = ttnn.to_torch(tt_out, mesh_composer=ListMeshToTensor(device_mesh))
+            tensors = ttnn.to_torch(tt_out, device=device_mesh, mesh_composer=ListMeshToTensor(device_mesh))
             tt_outs.append(tensors[0].squeeze(1))
 
         tt_out = torch.vstack(tt_outs)
@@ -218,7 +218,7 @@ def run_test_FalconModel_inference(
             use_cache=use_cache,
         )
         # Output of model is replicated
-        tensors = ttnn.to_torch(tt_out, mesh_composer=ListMeshToTensor(device_mesh))
+        tensors = ttnn.to_torch(tt_out, device=device_mesh, mesh_composer=ListMeshToTensor(device_mesh))
         tt_out = tensors[0].squeeze(1).transpose(0, 1)
 
     # check outputs ----------------------------------------------------------------------
@@ -228,8 +228,12 @@ def run_test_FalconModel_inference(
     for i in range(num_layers):
         pytorch_layer_pres = pytorch_layer_present[i]
         tt_layer_pres = (
-            ttnn.to_torch(tt_layer_present[i][0], mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)),
-            ttnn.to_torch(tt_layer_present[i][1], mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)),
+            ttnn.to_torch(
+                tt_layer_present[i][0], device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)
+            ),
+            ttnn.to_torch(
+                tt_layer_present[i][1], device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=1)
+            ),
         )
         tt_layer_pres = (
             torch.repeat_interleave(

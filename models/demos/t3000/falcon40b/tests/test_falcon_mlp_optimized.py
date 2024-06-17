@@ -91,10 +91,9 @@ def run_test_FalconMLP_inference(
         layout=ttnn.TILE_LAYOUT,
         mesh_mapper=ttnn.ReplicateTensorToMesh(device_mesh),
     )
-    print(tt_mlp_input.shape)
 
     tt_out = tt_FalconMLP_model(tt_mlp_input, llm_mode)
-    tt_out_tensor = ttnn.to_torch(tt_out, mesh_composer=ConcatMeshToTensor(device_mesh, dim=3))
+    tt_out_tensor = ttnn.to_torch(tt_out, device=device_mesh, mesh_composer=ConcatMeshToTensor(device_mesh, dim=3))
 
     # check outputs ----------------------------------------------------------------------
     does_pass, output_pcc = comp_pcc(pytorch_out, tt_out_tensor, pcc)
