@@ -67,6 +67,7 @@ jobs:
             --device /dev/tenstorrent
             -e WH_ARCH_YAML=${WH_ARCH_YAML}
             -e TTNN_CONFIG_OVERRIDES=${TTNN_CONFIG_OVERRIDES}
+            -v /dev/hugepages-1G:/dev/hugepages-1G
           run_args: |
             source ${{ github.workspace }}/python_env/bin/activate 
             ${{ matrix.test-group.cmd }}

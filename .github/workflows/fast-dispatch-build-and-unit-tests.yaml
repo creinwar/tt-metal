@@ -66,6 +66,7 @@ jobs:
             -e LOGURU_LEVEL=${{ env.LOGURU_LEVEL }}
             -e LD_LIBRARY_PATH=${{ env.LD_LIBRARY_PATH }}
             -e TT_METAL_ENV=${{ env.TT_METAL_ENV }}
+            -v /dev/hugepages-1G:/dev/hugepages-1G
             --device /dev/tenstorrent
           run_args: |
             source ${{ github.workspace }}/python_env/bin/activate
@@ -121,6 +122,7 @@ jobs:
             -e LD_LIBRARY_PATH=${{ env.LD_LIBRARY_PATH }}
             -e TT_METAL_ENV=${{ env.TT_METAL_ENV }}
             --device /dev/tenstorrent
+            -v /dev/hugepages-1G:/dev/hugepages-1G
           run_args: |
             ./tests/scripts/run_build_docs.sh
       # - name: Run pre/post regression tests
@@ -172,6 +174,7 @@ jobs:
             -e LD_LIBRARY_PATH=${{ env.LD_LIBRARY_PATH }}
             -e TT_METAL_ENV=${{ env.TT_METAL_ENV }}
             --device /dev/tenstorrent
+            -v /dev/hugepages-1G:/dev/hugepages-1G
           run_args: |
             ./tests/scripts/run_tests.sh --tt-arch $ARCH_NAME --pipeline-type post_commit --dispatch-mode fast-multi-queue-single-device
       

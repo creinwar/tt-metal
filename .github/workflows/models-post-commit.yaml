@@ -53,6 +53,7 @@ jobs:
             -e TT_METAL_ENV=${{ env.TT_METAL_ENV }}
             --device /dev/tenstorrent
             -e PYTHONPATH=${TT_METAL_HOME}
+            -v /dev/hugepages-1G:/dev/hugepages-1G
           run_args: |
             source ${{ github.workspace }}/python_env/bin/activate
             ${{ matrix.test-group.cmd }}
