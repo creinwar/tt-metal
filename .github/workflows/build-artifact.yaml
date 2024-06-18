@@ -8,27 +8,8 @@ on:
         type: string
         default: '["grayskull", "wormhole_b0"]'
   workflow_dispatch:
-
-env:
-  CONFIG: ci
-  SILENT: 0
-  VERBOSE: 1
   
 jobs:
-  # set-docker-image-tag:
-  #   runs-on: build
-  #   outputs:
-  #     tag: ${{ steps.set-image-tag.outputs.IMAGE_TAG }}
-  #   steps:
-  #     - name: Determine Docker Image Tag
-  #       id: set-image-tag
-  #       run: |
-  #         if [[ "${GITHUB_REF_NAME}" == "main" ]]; then
-  #           echo "name=IMAGE_TAG=latest" >> $GITHUB_OUTPUT
-  #         else
-  #           echo "name=IMAGE_TAG=${GITHUB_ACTOR}" >> $GITHUB_OUTPUT
-  #         fi
-
 
   build-docker-images:
     strategy:
@@ -41,79 +22,24 @@ jobs:
       GITHUB_BRANCH: ${{ github.ref_name }}
     environment: dev
     runs-on: build-docker
-    container: 
-      image: ghcr.io/${{ github.repository }}/${{ matrix.docker_image_tag }}:${{ github.sha }}
-      env:
-        TT_METAL_ENV: ${{ vars.TT_METAL_ENV }}
-        ARCH_NAME: ${{ matrix.arch }}
-        GITHUB_BRANCH: ${{ github.ref_name }}
-        CONFIG: ${{ env.CONFIG }} 
-        TT_METAL_HOME: ${{ github.workspace }} 
-      volumes:
-        - ${{ github.workspace }}:${{ github.workspace }}
-        - /etc/group:/etc/group:ro
-        - /etc/passwd:/etc/passwd:ro
-        - /etc/shadow:/etc/shadow:ro
-      options: 
-        -w ${{ github.workspace }}
     steps:
       - uses: tenstorrent-metal/metal-workflows/.github/actions/checkout-with-submodule-lfs@v2.0.0
       - name: Set up dynamic env vars for build
         run: |
           echo "TT_METAL_HOME=$(pwd)" >> $GITHUB_ENV
-          echo "RUNNER_UID=$(id -u)" >> $GITHUB_ENV
-          echo "RUNNER_GID=$(id -g)" >> $GITHUB_ENV
       - name: Update submodules
         run: |
           git submodule update --init --recursive
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+      - name: Execute in docker image
+        uses: ./.github/actions/docker-run
         with:
-          registry: https://ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      # - name: Create correct Docker Tag
-      #   run: |
-      #     if [[ "${GITHUB_REF_NAME}" == "main" ]]; then
-      #       echo "BASE_IMAGE_TAG=latest" >> $GITHUB_ENV
-      #       echo "OUTPUT_IMAGE_TAG=${{ env.ARCH_NAME }}" >> $GITHUB_ENV
-      #     else
-      #       echo "BASE_IMAGE_TAG=${GITHUB_ACTOR}" >> $GITHUB_ENV
-      #       echo "OUTPUT_IMAGE_TAG=${GITHUB_ACTOR}-${{ env.ARCH_NAME }}" >> $GITHUB_ENV
-      #     fi
-      # - name: Build Docker Image
-      #   id: docker-tag
-      #   run: |
-      #     docker build -f dockerfile/tt-metalium.Dockerfile \
-      #                 --build-arg ARCH_NAME=${{ env.ARCH_NAME }} \
-      #                 --build-arg IMAGE_TAG=${{ env.BASE_IMAGE_TAG }} \
-      #                 --build-arg GITHUB_BRANCH=${{ env.GITHUB_BRANCH }} \
-      #                 -t ghcr.io/${{ github.repository }}/${{ env.TT_METAL_DOCKER_IMAGE }}:${{ env.OUTPUT_IMAGE_TAG }} .
-      # - name: Push Docker image to GitHub Container Registry
-      #   run: |
-      #     docker push ghcr.io/${{ github.repository }}/${{ env.TT_METAL_DOCKER_IMAGE }}:${{ env.OUTPUT_IMAGE_TAG }}
-      # - uses: addnab/docker-run-action@v3
-      #   with:
-      #     username: ${{ github.actor }}
-      #     password: ${{ secrets.GITHUB_TOKEN }}
-      #     registry: ghcr.io
-      #     image: ghcr.io/${{ github.repository }}/${{ env.TT_METAL_DOCKER_IMAGE }}:${{ env.OUTPUT_IMAGE_TAG }}
-      #     options: |
-      #       -u ${{ env.RUNNER_UID }}:${{ env.RUNNER_GID }}
-      #       -v ${{ github.workspace }}:${{ github.workspace }}
-      #       -e CONFIG=${{ env.CONFIG }} 
-      #       -e ARCH_NAME=${{ matrix.arch }} 
-      #       -e TT_METAL_HOME=${{ github.workspace }} 
-      #       -w ${{ github.workspace }}
-      #       -v /etc/group:/etc/group:ro
-      #       -v /etc/passwd:/etc/passwd:ro
-      #       -v /etc/shadow:/etc/shadow:ro
-      #     run: |
-      - name: Build tt-metal and libs
-        run: |
-          cmake -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++-17
-          cmake --build build --target tests
-          cmake --build build --target install
+          run_args: |
+            cmake -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++-17
+            cmake --build build --target tests
+            cmake --build build --target install
+          docker_opts: |
+            -e CONFIG=${{ env.CONFIG }} 
+            -e ARCH_NAME=${{ matrix.arch }} 
       - name: 'Tar files'
         run: tar -cvf ttm_${{ matrix.arch }}.tar build/hw build/lib tt_eager/tt_lib/*.so ttnn/ttnn/*.so build/programming_examples build/test build/tools runtime
       - name: 'Upload Artifact'

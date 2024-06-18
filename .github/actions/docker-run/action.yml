@@ -1,0 +1,47 @@
+name: "Run set of commands in Docker"
+description: "Run commands in docker"
+
+inputs:
+  run_args:
+    description: 'Commands to run in docker'
+    required: true
+  docker_opts:
+    description: 'Docker options'
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up dynamic env vars for build
+      shell: bash
+      run: |
+        echo "TT_METAL_HOME=$(pwd)" >> $GITHUB_ENV
+        echo "RUNNER_UID=$(id -u)" >> $GITHUB_ENV
+        echo "RUNNER_GID=$(id -g)" >> $GITHUB_ENV
+    - name: Create correct Docker Tag
+      shell: bash
+      run: |
+        if [[ "${GITHUB_REF_NAME}" == "main" ]]; then
+          echo "BASE_IMAGE_TAG=latest" >> $GITHUB_ENV
+          echo "OUTPUT_IMAGE_TAG=${{ env.ARCH_NAME }}" >> $GITHUB_ENV
+        else
+          echo "BASE_IMAGE_TAG=${GITHUB_ACTOR}" >> $GITHUB_ENV
+          echo "OUTPUT_IMAGE_TAG=${GITHUB_ACTOR}-${{ env.ARCH_NAME }}" >> $GITHUB_ENV
+        fi
+    - uses: addnab/docker-run-action@v3
+      with:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        registry: ghcr.io
+        image: ghcr.io/${{ github.repository }}/${{ env.TT_METAL_DOCKER_IMAGE }}:${{ env.OUTPUT_IMAGE_TAG }}
+        options: |
+          -u ${{ env.RUNNER_UID }}:${{ env.RUNNER_GID }}
+          -v ${{ github.workspace }}:${{ github.workspace }}
+          -e TT_METAL_HOME=${{ github.workspace }} 
+          -w ${{ github.workspace }}
+          -v /etc/group:/etc/group:ro
+          -v /etc/passwd:/etc/passwd:ro
+          -v /etc/shadow:/etc/shadow:ro
+          ${{ inputs.docker_opts }}
+        run: |
+          ${{ inputs.run_args }}
