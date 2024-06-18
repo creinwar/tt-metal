@@ -53,16 +53,29 @@ jobs:
           name: TTMetal_build_${{ matrix.runner-info.arch }}
       - name: Extract files
         run: tar -xvf ttm_${{ matrix.runner-info.arch }}.tar
-      - uses: ./.github/actions/load-docker-image
+      - uses: ./.github/actions/install-python-deps
       - name: ${{ matrix.test-group.name }} tests
         timeout-minutes: 45
-        run: |
-          ./scripts/docker/run_docker_cmd.sh -- ${{ matrix.test-group.cmd }}
-      - uses: ./.github/actions/slack-report
-        if: ${{ failure() }}
+        uses: ./.github/actions/docker-run
         with:
-          slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
-          owner: U0593J2RQRZ # Bill Teng
+          docker_username: ${{ github.actor }}
+          docker_password: ${{ secrets.GITHUB_TOKEN }}
+          docker_opts: |
+            -e CONFIG=${{ env.CONFIG }} 
+            -e ARCH_NAME=${{ matrix.runner-info.arch }}
+            -e LOGURU_LEVEL=${{ env.LOGURU_LEVEL }}
+            -e LD_LIBRARY_PATH=${{ env.LD_LIBRARY_PATH }}
+            -e TT_METAL_ENV=${{ env.TT_METAL_ENV }}
+            --device /dev/tenstorrent
+          run_args: |
+            source ${{ github.workspace }}/python_env/bin/activate
+            ${{ matrix.test-group.cmd }}
+            
+      # - uses: ./.github/actions/slack-report
+      #   if: ${{ failure() }}
+      #   with:
+      #     slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+      #     owner: U0593J2RQRZ # Bill Teng
           
   build-docs:
     strategy:
@@ -94,15 +107,26 @@ jobs:
           name: TTMetal_build_${{ matrix.runner-info.arch }}
       - name: Extract files
         run: tar -xvf ttm_${{ matrix.runner-info.arch }}.tar
-      - uses: ./.github/actions/load-docker-image
+      - uses: ./.github/actions/install-python-deps
       - name: Build Docs
         timeout-minutes: 15
-        run: |
-          ./scripts/docker/run_docker_cmd.sh -- ./tests/scripts/run_build_docs.sh
-      - name: Run pre/post regression tests
-        timeout-minutes: 15
-        run: |
-          ./scripts/docker/run_docker_cmd.sh -- ./tests/scripts/run_build_docs.sh
+        uses: ./.github/actions/docker-run
+        with:
+          docker_username: ${{ github.actor }}
+          docker_password: ${{ secrets.GITHUB_TOKEN }}
+          docker_opts: |
+            -e CONFIG=${{ env.CONFIG }} 
+            -e ARCH_NAME=${{ matrix.runner-info.arch }}
+            -e LOGURU_LEVEL=${{ env.LOGURU_LEVEL }}
+            -e LD_LIBRARY_PATH=${{ env.LD_LIBRARY_PATH }}
+            -e TT_METAL_ENV=${{ env.TT_METAL_ENV }}
+            --device /dev/tenstorrent
+          run_args: |
+            ./tests/scripts/run_build_docs.sh
+      # - name: Run pre/post regression tests
+      #   timeout-minutes: 15
+      #   run: |
+      #     ./scripts/docker/run_docker_cmd.sh -- ./tests/scripts/run_build_docs.sh
 
   multi-queue-single-device-tests:
     strategy:
@@ -134,8 +158,20 @@ jobs:
           name: TTMetal_build_${{ matrix.runner-info.arch }}
       - name: Extract files
         run: tar -xvf ttm_${{ matrix.runner-info.arch }}.tar
-      - uses: ./.github/actions/load-docker-image
+      - uses: ./.github/actions/install-python-deps
       - name: Run multi-queue-single-device
         timeout-minutes: 45
-        run: |
-          ./scripts/docker/run_docker_cmd.sh -- ./tests/scripts/run_tests.sh --tt-arch $ARCH_NAME --pipeline-type post_commit --dispatch-mode fast-multi-queue-single-device
+        uses: ./.github/actions/docker-run
+        with:
+          docker_username: ${{ github.actor }}
+          docker_password: ${{ secrets.GITHUB_TOKEN }}
+          docker_opts: |
+            -e CONFIG=${{ env.CONFIG }} 
+            -e ARCH_NAME=${{ matrix.runner-info.arch }}
+            -e LOGURU_LEVEL=${{ env.LOGURU_LEVEL }}
+            -e LD_LIBRARY_PATH=${{ env.LD_LIBRARY_PATH }}
+            -e TT_METAL_ENV=${{ env.TT_METAL_ENV }}
+            --device /dev/tenstorrent
+          run_args: |
+            ./tests/scripts/run_tests.sh --tt-arch $ARCH_NAME --pipeline-type post_commit --dispatch-mode fast-multi-queue-single-device
+      

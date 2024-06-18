@@ -54,6 +54,7 @@ runs:
           -u ${{ env.RUNNER_UID }}:${{ env.RUNNER_GID }}
           -v ${{ github.workspace }}:${{ github.workspace }}
           -e TT_METAL_HOME=${{ github.workspace }} 
+          -e PYTHONPATH=${{ github.workspace }}
           -w ${{ github.workspace }}
           -v /etc/group:/etc/group:ro
           -v /etc/passwd:/etc/passwd:ro
