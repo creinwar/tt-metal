@@ -65,8 +65,8 @@ jobs:
             -e LD_LIBRARY_PATH=${{ env.LD_LIBRARY_PATH }}
             -e TT_METAL_ENV=${{ env.TT_METAL_ENV }}
             --device /dev/tenstorrent
-            -e WH_ARCH_YAML=${WH_ARCH_YAML}
-            -e TTNN_CONFIG_OVERRIDES=${TTNN_CONFIG_OVERRIDES}
+            -e WH_ARCH_YAML=${{ env.WH_ARCH_YAML }}
+            -e TTNN_CONFIG_OVERRIDES=${{ env.TTNN_CONFIG_OVERRIDES }}
             -v /dev/hugepages-1G:/dev/hugepages-1G
           run_args: |
             source ${{ github.workspace }}/python_env/bin/activate 
