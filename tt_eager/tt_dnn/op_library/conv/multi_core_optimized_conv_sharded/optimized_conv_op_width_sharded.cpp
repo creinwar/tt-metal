@@ -208,6 +208,15 @@ operation::ProgramWithCallbacks multi_core_optimized_conv_sharded_v2_impl_width_
     Tensor& output,
     DeviceComputeKernelConfig compute_kernel_config){
          std::cout << "testing multi_core_optimized_conv_sharded_v2_impl 1" << std::endl;
+
+    auto null_override_runtime_arguments_callback =
+    [](
+        const void* operation,
+        Program& program,
+        const std::vector<Tensor>& input_tensors,
+        const std::vector<std::optional<const Tensor>>& optional_input_tensors,
+        const std::vector<Tensor>& output_tensors) {
+    };
     bool pass = true;
      tt_metal::Device* device = a.device();
     TT_ASSERT(a.get_layout() == Layout::ROW_MAJOR, "Conv activation should be in row major layout");
@@ -558,6 +567,8 @@ operation::ProgramWithCallbacks multi_core_optimized_conv_sharded_v2_impl_width_
         log_debug(LogOp, "fp32_dest_acc_en: {}", fp32_dest_acc_en);
         log_debug(LogOp, "packer_l1_acc: {}", packer_l1_acc);
     }
+
+    return {.program = std::move(program), .override_runtime_arguments_callback = null_override_runtime_arguments_callback};
 
     uint32_t window_outer;
     uint32_t window_inner;

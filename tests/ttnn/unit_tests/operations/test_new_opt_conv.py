@@ -23,9 +23,9 @@ import os
 def test_new_conv(device):
     print("OptimizedConvNew1 Python Side")
 
-    update_process_id()
-    batch_size, input_channel, input_height, input_width = 2, 1152, 8, 8
-    weight_batch, ncores = 1152, 36
+    # update_process_id()
+    batch_size, input_channel, input_height, input_width = 2, 64, 8, 8
+    weight_batch, ncores = 64, 2
     filter_height, filter_width = 3, 3
     input_shape = [1, 1, batch_size * input_height * input_width, input_channel]
     weight_shape = [1, 1, weight_batch * filter_height * filter_width, input_channel]
