@@ -60,7 +60,7 @@ runs:
           -v /etc/group:/etc/group:ro
           -v /etc/passwd:/etc/passwd:ro
           -v /etc/shadow:/etc/shadow:ro
-          -e PATH:${PATH}
+          -v /etc/bashrc:/etc/bashrc:ro
           ${{ inputs.docker_opts }}
         run: |
           ${{ inputs.run_args }}
