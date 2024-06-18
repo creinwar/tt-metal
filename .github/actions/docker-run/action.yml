@@ -5,6 +5,10 @@ inputs:
   run_args:
     description: 'Commands to run in docker'
     required: true
+  docker_image:
+    description: 'Docker image to run commands in'
+    required: false
+    default: tt-metalium/ubuntu-20.04-amd64
   docker_username:
     description: docker login username
     required: true
@@ -39,7 +43,7 @@ runs:
         username: ${{ inputs.docker_username }}
         password: ${{ inputs.docker_password }}
         registry: ghcr.io
-        image: ghcr.io/${{ github.repository }}/${{ env.TT_METAL_DOCKER_IMAGE }}:${{ env.OUTPUT_IMAGE_TAG }}
+        image: ghcr.io/${{ github.repository }}/${{ inputs.docker_image }}:${{ env.OUTPUT_IMAGE_TAG }}
         options: |
           -u ${{ env.RUNNER_UID }}:${{ env.RUNNER_GID }}
           -v ${{ github.workspace }}:${{ github.workspace }}
