@@ -69,8 +69,8 @@ jobs:
             -v /dev/hugepages-1G:/dev/hugepages-1G
             --device /dev/tenstorrent
           run_args: |
-            source ${{ github.workspace }}/python_env/bin/activate
-            ${{ matrix.test-group.cmd }}
+            source ${{ github.workspace }}/python_env/bin/activate \
+            && ${{ matrix.test-group.cmd }}
             
       # - uses: ./.github/actions/slack-report
       #   if: ${{ failure() }}
