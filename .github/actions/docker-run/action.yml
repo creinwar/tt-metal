@@ -61,7 +61,7 @@ runs:
           -v /etc/passwd:/etc/passwd:ro
           -v /etc/shadow:/etc/shadow:ro
           -v /etc/bashrc:/etc/bashrc:ro
-          --privileged
+          -v /home/ubuntu/actions-runner/_work/_tool/Python/:/home/ubuntu/actions-runner/_work/_tool/Python/
           ${{ inputs.docker_opts }}
         run: |
           ${{ inputs.run_args }}
