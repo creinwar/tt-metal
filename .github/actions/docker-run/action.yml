@@ -21,7 +21,7 @@ inputs:
 
 runs:
   using: "composite"
-  steps:
+  steps:  
     - name: Set up dynamic env vars for build
       shell: bash
       run: |
@@ -54,6 +54,7 @@ runs:
         options: |
           -u ${{ env.RUNNER_UID }}:${{ env.RUNNER_GID }}
           -v ${{ github.workspace }}:${{ github.workspace }}
+          -v /home:/home
           -e TT_METAL_HOME=${{ github.workspace }} 
           -e PYTHONPATH=${{ github.workspace }}
           -w ${{ github.workspace }}
