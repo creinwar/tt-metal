@@ -52,6 +52,7 @@ jobs:
             -e LD_LIBRARY_PATH=${{ env.LD_LIBRARY_PATH }}
             -e TT_METAL_ENV=${{ env.TT_METAL_ENV }}
             --device /dev/tenstorrent
+            -v /dev/hugepages-1G:/dev/hugepages-1G
           run_args: |
             source ${{ github.workspace }}/python_env/bin/activate
             ${{ matrix.test-group.cmd }}
