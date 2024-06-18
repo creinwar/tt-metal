@@ -36,7 +36,7 @@ runs:
           echo "OUTPUT_IMAGE_TAG=${{ env.ARCH_NAME }}" >> $GITHUB_ENV
         else
           echo "BASE_IMAGE_TAG=${GITHUB_ACTOR}" >> $GITHUB_ENV
-          echo "OUTPUT_IMAGE_TAG=${GITHUB_ACTOR}-${{ env.ARCH_NAME }}" >> $GITHUB_ENV
+          echo "OUTPUT_IMAGE_TAG=dev-${GITHUB_ACTOR}" >> $GITHUB_ENV
         fi
     - uses: addnab/docker-run-action@v3
       with:
