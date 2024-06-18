@@ -233,7 +233,7 @@ class TtFalconAttentionOptimized:
                 device=self.device_mesh,
                 memory_config=self.model_config["DRAM_MEMCFG"],
                 mesh_mapper=ReplicateTensorToMesh(self.device_mesh),
-                # cache_file_name=kv_cache_path,
+                cache_file_name=kv_cache_path,
             )
 
             v_cache = ttnn.as_tensor(
@@ -243,7 +243,7 @@ class TtFalconAttentionOptimized:
                 device=self.device_mesh,
                 memory_config=self.model_config["DRAM_MEMCFG"],
                 mesh_mapper=ReplicateTensorToMesh(self.device_mesh),
-                # cache_file_name=kv_cache_path,
+                cache_file_name=kv_cache_path,
             )
 
             self.layer_past = (
