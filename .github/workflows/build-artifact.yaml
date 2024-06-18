@@ -19,7 +19,6 @@ jobs:
     env:
       TT_METAL_ENV: ${{ vars.TT_METAL_ENV }}
       ARCH_NAME: ${{ matrix.arch }}
-      GITHUB_BRANCH: ${{ github.ref_name }}
     environment: dev
     runs-on: build-docker
     steps:
@@ -33,6 +32,8 @@ jobs:
       - name: Execute in docker image
         uses: ./.github/actions/docker-run
         with:
+          docker_username: ${{ github.actor }}
+          docker_password: ${{ secrets.GITHUB_TOKEN }}
           run_args: |
             cmake -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++-17
             cmake --build build --target tests
