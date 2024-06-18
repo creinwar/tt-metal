@@ -63,16 +63,20 @@ jobs:
           cp -Lr docs/doxygen_build tt-metalium
           cp -Lr docs/source/tt-metalium/* tt-metalium
           rm tt-metalium/conf.py  # Do not change conf.py
-          GITHUB_USER=dimitri-tenstorrent
-          # git config --global user.email "tenstorrent-github-bot@tenstorrent.com"
-          # git config --global user.name "tenstorrent-github-bot"
-          #git config --global user.email "dimitri@tenstorrent.com"
-          #git config --global user.name "dimitri-tenstorrent"
-          #git clone https://${GITHUB_USER}:${GITHUB_BOT_TOKEN}@github.com/tenstorrent/docs-test.git
-          #git remote set-url origin https://${GITHUB_USER}:${GITHUB_BOT_TOKEN}@github.com/tenstorrent/docs-test.git
-          #git checkout main
-          #cd docs-test
-          #cp -r tt-metalium/* docs/test/tt-metalium
+          GITHUB_USER=tenstorrent-github-bot
+          git config --global user.email "tenstorrent-github-bot@tenstorrent.com"
+          git config --global user.name "tenstorrent-github-bot"
+          git config --global user.email "dimitri@tenstorrent.com"
+          git config --global user.name "dimitri-tenstorrent"
+          git clone https://${GITHUB_USER}:${TTBOT_DOCS_ACCESS}@github.com/tenstorrent/docs-test.git
+          git remote set-url origin https://${GITHUB_USER}:${TTBOT_DOCS_ACCESS}@github.com/tenstorrent/docs-test.git
+          git checkout main
+          cp -r tt-metalium/* docs-test/tt-metalium
+          python update_tags.py tt-metalium $DOCS_VERSION
+          git add .
+          git commit -m "update metalium docs from pipeline CI_PIPELINE_ID with tag CI_COMMIT_TAG"
+          git tag -a $DOCS_VERSION -m "metalium documentation version CI_COMMIT_TAG"
+          git push && git push --tags
       - name: Upload tt-metalium docs
         uses: actions/upload-artifact@v4
         with:
@@ -85,16 +89,20 @@ jobs:
           cp -Lr docs/doxygen_build ttnn-docs
           cp -Lr docs/source/ttnn/* ttnn-docs
           rm ttnn-docs/conf.py  # Do not change conf.py
-          GITHUB_USER=dimitri-tenstorrent
-          # git config --global user.email "tenstorrent-github-bot@tenstorrent.com"
-          # git config --global user.name "tenstorrent-github-bot"
-          #git config --global user.email "dimitri@tenstorrent.com"
-          #git config --global user.name "dimitri-tenstorrent"
-          #git clone https://${GITHUB_USER}:${GITHUB_BOT_TOKEN}@github.com/tenstorrent/docs-test.git
-          #git remote set-url origin https://${GITHUB_USER}:${GITHUB_BOT_TOKEN}@github.com/tenstorrent/docs-test.git
-          #git checkout main
-          #cd docs-test
-          #cp -r tt-metalium/* docs/test/tt-metalium
+          GITHUB_USER=tenstorrent-github-bot
+          git config --global user.email "tenstorrent-github-bot@tenstorrent.com"
+          git config --global user.name "tenstorrent-github-bot"
+          git config --global user.email "dimitri@tenstorrent.com"
+          git config --global user.name "dimitri-tenstorrent"
+          git clone https://${GITHUB_USER}:${TTBOT_DOCS_ACCESS}@github.com/tenstorrent/docs-test.git
+          git remote set-url origin https://${GITHUB_USER}:${TTBOT_DOCS_ACCESS}@github.com/tenstorrent/docs-test.git
+          git checkout main
+          cp -r ttnn-docs/* docs-test/ttnn
+          python update_tags.py ttnn $DOCS_VERSION
+          git add .
+          git commit -m "update ttnn docs from pipeline CI_PIPELINE_ID with tag CI_COMMIT_TAG"
+          git tag -a $DOCS_VERSION -m "ttnn documentation version CI_COMMIT_TAG"
+          git push && git push --tags
       - name: Upload ttnn-docs
         uses: actions/upload-artifact@v4
         with:
