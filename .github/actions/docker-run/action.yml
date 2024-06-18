@@ -46,6 +46,7 @@ runs:
         password: ${{ inputs.docker_password }}
     - uses: addnab/docker-run-action@v3
       with:
+        shell: bash
         username: ${{ inputs.docker_username }}
         password: ${{ inputs.docker_password }}
         registry: ghcr.io
@@ -55,7 +56,6 @@ runs:
           -v ${{ github.workspace }}:${{ github.workspace }}
           -e TT_METAL_HOME=${{ github.workspace }} 
           -e PYTHONPATH=${{ github.workspace }}
-          -e PATH=${{ github.workspace }}/python_env/bin:$PATH
           -w ${{ github.workspace }}
           -v /etc/group:/etc/group:ro
           -v /etc/passwd:/etc/passwd:ro
