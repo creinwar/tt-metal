@@ -213,11 +213,9 @@ class TtFalconDecoderLayer:
             )
 
         replicated_hidden_states = ttnn.all_gather(
-        replicated_hidden_states = ttnn.all_gather(
             replicated_hidden_states,
             dim=3,
             num_links=self.model_config["ALL_GATHER_NUM_LINKS"],
-            dim=3,
             memory_config=self.model_config["DEFAULT_MEMCFG"],
         )
 
@@ -326,7 +324,6 @@ class TtFalconDecoderLayer:
             replicated_hidden_states,
             dim=3,
             num_links=self.model_config["ALL_GATHER_NUM_LINKS"],
-            dim=3,
             memory_config=self.model_config["DEFAULT_MEMCFG"],
         )
         replicated_hidden_states = ttnn.experimental.tensor.interleaved_to_sharded(

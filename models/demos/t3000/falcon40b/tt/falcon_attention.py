@@ -446,7 +446,6 @@ class TtFalconAttention:
             dim=3,
             num_links=self.model_config["ALL_GATHER_NUM_LINKS"],
             memory_config=self.model_config["DEFAULT_MEMCFG"],
-            memory_config=self.model_config["DEFAULT_MEMCFG"],
         )
         attn_output = falcon_prefill_matmul(
             attn_output,
@@ -699,7 +698,6 @@ class TtFalconAttention:
             attn_output,
             dim=3,
             num_links=self.model_config["ALL_GATHER_NUM_LINKS"],
-            memory_config=self.model_config["DEFAULT_MEMCFG"],
             memory_config=self.model_config["DEFAULT_MEMCFG"],
         )
         attn_output = ttnn.experimental.tensor.interleaved_to_sharded(
