@@ -251,7 +251,7 @@ class TtFalconDecoderLayer:
             self.ln_output_tensors_dict["mlp_layernorm"],
         )
 
-        residual = hidden_states
+        output = hidden_states
 
         # Self Attention
         attn_outputs = self.self_attn(
@@ -270,10 +270,10 @@ class TtFalconDecoderLayer:
         # Add attn output to residiual first in place to save memory
         # Note that this is only correct in inference when dropout is disabled
         output = ttnn.add(
-            residual,
+            output,
             attention_output,
             memory_config=self.model_config["PARALLEL_ATTN_ADD_OUTPUT_MEMCFG"],
-            output_tensor=residual,
+            # output_tensor=output,
         )
         attention_output.deallocate(True)
 
@@ -287,7 +287,7 @@ class TtFalconDecoderLayer:
             output,
             mlp_output,
             memory_config=self.model_config["DROPOUT_ADD_OUTPUT_MEMCFG"],
-            output_tensor=output,
+            # output_tensor=output,
         )
         mlp_output.deallocate(True)
 
@@ -351,7 +351,7 @@ class TtFalconDecoderLayer:
             self.model_config["LN_MLP_PROGCFG"],
         )
 
-        residual = hidden_states
+        output = hidden_states
 
         # Self Attention
         attn_outputs = self.self_attn(
@@ -367,15 +367,13 @@ class TtFalconDecoderLayer:
         )
         attention_output, outputs = attn_outputs[0], attn_outputs[1:]
 
-        output = []
-
         # Add attn output to residiual first in place to save memory
         # Note that this is only correct in inference when dropout is disabled
         output = ttnn.add(
-            residual,
+            output,
             attention_output,
             memory_config=self.model_config["PARALLEL_ATTN_ADD_OUTPUT_MEMCFG"],
-            output_tensor=residual,
+            # output_tensor=output,
         )
         attention_output.deallocate(True)
 
@@ -389,7 +387,7 @@ class TtFalconDecoderLayer:
             output,
             mlp_output,
             memory_config=self.model_config["DROPOUT_ADD_OUTPUT_MEMCFG"],
-            output_tensor=output,
+            # output_tensor=output,
         )
         mlp_output.deallocate(True)
 
