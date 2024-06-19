@@ -129,6 +129,13 @@ class TtFalconDecoderLayer(nn.Module):
 
         assert not output_attentions
 
+        ln_compute_config = ttnn.experimental.tensor.WormholeComputeKernelConfig(
+            math_fidelity=ttnn.experimental.tensor.MathFidelity.HiFi2,
+            math_approx_mode=False,
+            fp32_dest_acc_en=False,
+            packer_l1_acc=False,
+        )
+
         layernorm_output = []
         for i in range(self.num_devices):
             layernorm_output.append(
@@ -136,6 +143,7 @@ class TtFalconDecoderLayer(nn.Module):
                     hidden_states[i],
                     self.layernorm_eps,
                     output_mem_config=self.model_config["INPUT_LAYERNORM_OUTPUT_MEMCFG"],
+                    compute_kernel_config=ln_compute_config,
                 )
             )
         for i in range(self.num_devices):
