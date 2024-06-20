@@ -89,22 +89,21 @@ def opimized_conv_new_1(
     # input_tensor_shape: ttnn.TensorShape=None,
     use_shallow_conv_variant: bool = False,
 ) -> ttnn.Tensor:
-    print("OptimizedConvNew2 Python core Side")
-
     grid_size = device.compute_with_storage_grid_size()
-    per_core_out_matrix_h_ntiles, per_core_weight_matrix_w_ntiles = 4, 1
+    ncores = input_tensor.shape[3] // 32
+    per_core_out_matrix_h_ntiles, per_core_weight_matrix_w_ntiles = (
+        2 * input_height * input_width // 32,
+        (output_channels // ncores) // 32,
+    )
+    print(
+        f"ncores = {ncores}, per_core_out_matrix_h_ntiles = {per_core_out_matrix_h_ntiles}, per_core_weight_matrix_w_ntiles = {per_core_weight_matrix_w_ntiles}"
+    )
     input_tensor_shape = (2, input_height, input_width, input_tensor.shape[3])
-    act_block_h, act_block_w = per_core_out_matrix_h_ntiles, int(input_tensor_shape[3] / 32)
+    act_block_h, act_block_w = per_core_out_matrix_h_ntiles, (input_tensor_shape[3]) // 32
     out_subblock_h, out_subblock_w = determine_largest_subblock_size(
         per_core_out_matrix_h_ntiles, per_core_weight_matrix_w_ntiles, False
     )
-    print(
-        "act_block_h, act_block_w, out_subblock_h, out_subblock_w",
-        act_block_h,
-        act_block_w,
-        out_subblock_h,
-        out_subblock_w,
-    )
+    print("Output Channels ", output_channels)
     # act_block_h, act_block_w, out_subblock_h, out_subblock_w = (
     #     per_core_out_matrix_h_ntiles,
     #     int(input_tensor_shape[3] / 32),
@@ -114,7 +113,7 @@ def opimized_conv_new_1(
     opt_conv_parall_conf = ttnn.experimental.tensor.OptimizedConvParallelizationConfig(
         grid_size=grid_size,
         num_cores_nhw=1,
-        num_cores_c=act_block_w,  # todo remove cores variable
+        num_cores_c=ncores,  # todo remove cores variable
         per_core_out_matrix_height_ntiles=per_core_out_matrix_h_ntiles,
         per_core_out_matrix_width_ntiles=per_core_weight_matrix_w_ntiles,
     )

@@ -236,6 +236,10 @@ operation::ProgramWithCallbacks multi_core_optimized_conv_sharded_v2_impl_width_
         has_bias ? tt_metal::datatype_to_dataformat_converter(bias.value().get_dtype()) : DataFormat::Float16_b;
     DataFormat tilized_act_df = out_df;
 
+    uint32_t act_tile_size = tt_metal::detail::TileSize(act_df);
+    uint32_t weight_tile_size = tt_metal::detail::TileSize(weight_df);
+    uint32_t out_tile_size = tt_metal::detail::TileSize(out_df);
+
     std::cout << "testing multi_core_optimized_conv_sharded_v2_impl 2" << std::endl;
     log_debug(LogOp, "act_df: {}", act_df);
     log_debug(LogOp, "weight_df: {}", weight_df);
@@ -523,6 +527,8 @@ operation::ProgramWithCallbacks multi_core_optimized_conv_sharded_v2_impl_width_
     // For debug
     {
         log_debug(LogOp, "multi_core_optimized_conv_sharded_v2_");
+        log_debug(LogOp, "num_cores_x: {}", num_cores_x);
+        log_debug(LogOp, "num_cores_y: {}", num_cores_y);
         log_debug(LogOp, "conv_act_size_h: {}", conv_act_size_h);
         log_debug(LogOp, "conv_act_size_w: {}", conv_act_size_w);
         log_debug(LogOp, "act_matrix_height: {}", act_matrix_height);
@@ -566,840 +572,148 @@ operation::ProgramWithCallbacks multi_core_optimized_conv_sharded_v2_impl_width_
         log_debug(LogOp, "math_approx_mode: {}", math_approx_mode);
         log_debug(LogOp, "fp32_dest_acc_en: {}", fp32_dest_acc_en);
         log_debug(LogOp, "packer_l1_acc: {}", packer_l1_acc);
+        log_debug(LogOp, "total_active_cores {}", p_config.num_cores_c);
+
     }
 
-    return {.program = std::move(program), .override_runtime_arguments_callback = null_override_runtime_arguments_callback};
 
-    uint32_t window_outer;
-    uint32_t window_inner;
-    if (weight_width_sliced) {
-        window_outer = 1;  // window_outer = 1 becasue all of filter window is processed in the inner loop
-        window_inner = 3;  // window_inner = 9 / 3, ie. read 3 width coalesced
-    } else {
-        window_outer = num_blocks_act_w;                                  // window_outer
-        window_inner = weight_size_h * weight_size_w / num_blocks_act_w;  // window_inner
-    }
-    reader_defines["WINDOW_INNER"] = std::to_string(window_inner);
-    log_debug(LogOp, "window_outer: {}, window_inner: {}", window_outer, window_inner);
-
-    assert(weight_matrix_width_ntiles % per_core_out_matrix_width_ntiles == 0);
-    assert(per_core_out_matrix_width_ntiles % weight_block_w_ntiles == 0);
-    uint32_t num_blocks_weight_w_per_core = per_core_out_matrix_width_ntiles / weight_block_w_ntiles;
-    if (not weight_width_sliced) {
-        assert(num_blocks_weight_w_per_core == num_blocks_weight_w);
-    }
-    uint32_t num_weight_slices_width = weight_matrix_width_ntiles / per_core_out_matrix_width_ntiles;
-    uint32_t total_num_cores_per_weight_slice = 0;
-    uint32_t total_num_cores_per_act_slice = 0;  // only used when (BLOCK_SHARDING && !transpose_mcast)
-    if(a.memory_config().memory_layout == TensorMemoryLayout::WIDTH_SHARDED){
-        assert(p_config.num_cores_c % num_weight_slices_width == 0);
-        uint32_t num_cores_x_per_weight_slice_width = num_weight_slices_width;
-        uint32_t num_act_slices_height = act_matrix_height_ntiles / per_core_out_matrix_height_ntiles;
-        total_num_cores_per_act_slice = num_cores_x * num_cores_y / num_act_slices_height;
-        log_debug(LogOp, "total_num_cores_per_act_slice: {}", total_num_cores_per_act_slice);
-        total_num_cores_per_weight_slice = num_cores_x_per_weight_slice_width;
-    }
-    /*else{
-        if (weight_width_sliced) {
-            if (transpose_mcast) {
-                assert(num_cores_y % num_weight_slices_width == 0);
-                uint32_t num_cores_y_per_weight_slice_width = num_cores_y / num_weight_slices_width;
-                total_num_cores_per_weight_slice = num_cores_y_per_weight_slice_width * num_cores_x;
-            } else {
-                assert(num_cores_x % num_weight_slices_width == 0);
-                uint32_t num_cores_x_per_weight_slice_width = num_cores_x / num_weight_slices_width;
-                uint32_t num_act_slices_height = act_matrix_height_ntiles / per_core_out_matrix_height_ntiles;
-                total_num_cores_per_act_slice = num_cores_x * num_cores_y / num_act_slices_height;
-                log_debug(LogOp, "total_num_cores_per_act_slice: {}", total_num_cores_per_act_slice);
-                total_num_cores_per_weight_slice = num_cores_x_per_weight_slice_width * num_cores_y;
-            }
-            assert(total_num_cores_per_weight_slice * per_core_out_matrix_height_ntiles == act_matrix_height_ntiles);
-        } else {
-            assert(num_cores_y % num_weight_slices_width == 0);
-            uint32_t num_cores_y_per_weight_slice_width = num_cores_y / num_weight_slices_width;
-            total_num_cores_per_weight_slice = num_cores_y_per_weight_slice_width * num_cores_x;
-            assert(total_num_cores * per_core_out_matrix_height_ntiles >= act_matrix_height_ntiles);
-        }
-    }*/
-
-    assert(per_core_out_matrix_height_ntiles % act_block_h_ntiles == 0);
-    uint32_t num_blocks_act_h_per_core = per_core_out_matrix_height_ntiles / act_block_h_ntiles;
-    assert(per_core_out_matrix_height_ntiles % out_block_h_ntiles == 0);
-    uint32_t num_blocks_out_h_per_core = per_core_out_matrix_height_ntiles / out_block_h_ntiles;
-    bool act_height_sliced = per_core_out_matrix_height_ntiles < act_matrix_height_ntiles;
-    /*if (not act_height_sliced) {
-        assert(num_blocks_act_h_per_core == num_blocks_act_h);
-        assert(num_blocks_out_h_per_core == num_blocks_out_h);
-        assert(num_cores_x == 1);
-    }*/
-
-    log_debug(LogOp, "total_num_cores_per_weight_slice: {}", total_num_cores_per_weight_slice);
-    log_debug(LogOp, "num_blocks_act_h_per_core: {}", num_blocks_act_h_per_core);
-    log_debug(LogOp, "num_blocks_out_h_per_core: {}", num_blocks_out_h_per_core);
-
-    //issue here testing more
-    assert(act_matrix_height_ntiles % per_core_out_matrix_height_ntiles == 0);
-    uint32_t total_active_num_cores_per_weight_slice = act_matrix_height_ntiles / per_core_out_matrix_height_ntiles;
-    assert(total_active_num_cores_per_weight_slice <= total_num_cores_per_weight_slice);
-    //uint32_t total_noop_cores = total_num_cores_per_weight_slice - total_active_num_cores_per_weight_slice;
-    uint32_t total_cores = num_cores_x * num_cores_y; //changed
     uint32_t total_active_num_cores = p_config.num_cores_c;
-    uint32_t total_noop_cores = total_cores - total_num_cores_per_weight_slice;
 
-    //issue could be here
-    /*if (weight_width_sliced) {
-        assert(total_noop_cores == 0);
-        assert(total_active_num_cores == total_num_cores);
-    }*/
-
-    if (has_bias) {
-        assert(bias_ntiles % num_weight_slices_width == 0);
-        assert(bias_ntiles == weight_matrix_width_ntiles);
-    }
-    uint32_t bias_ntiles_per_core = bias_ntiles / num_weight_slices_width;
-
-    CoreRange all_cores(CoreCoord(0, 0), CoreCoord(num_cores_x - 1, num_cores_y - 1));
-    assert(total_active_num_cores >= num_cores_x);
-    uint32_t num_active_cores_x = num_cores_x;
-    uint32_t num_active_cores_y_with_full_x = total_active_num_cores / num_cores_x;
-    uint32_t num_active_cores_x_last_y = total_active_num_cores % num_cores_x;
-    assert((num_active_cores_x * num_active_cores_y_with_full_x) + num_active_cores_x_last_y == total_active_num_cores);
-
+    //Assuming only a single row of cores.
     std::set<CoreRange> all_active_cores_set;
     all_active_cores_set.insert(
-        CoreRange(CoreCoord(0, 0), CoreCoord(num_active_cores_x - 1, num_active_cores_y_with_full_x - 1)));
-    if (num_active_cores_x_last_y > 0) {
-        all_active_cores_set.insert(CoreRange(
-            CoreCoord(0, num_active_cores_y_with_full_x),
-            CoreCoord(num_active_cores_x_last_y - 1, num_active_cores_y_with_full_x)));
-    }
+        CoreRange(CoreCoord(0, 0), CoreCoord(total_active_num_cores - 1, 0)));
+
     CoreRangeSet all_active_cores(all_active_cores_set);
-    std::set<CoreRange> noop_cores_set;
-    if (total_noop_cores > 0) {
-        assert(total_noop_cores == (num_cores_x - num_active_cores_x_last_y));
-        noop_cores_set.insert(CoreRange(
-            CoreCoord(num_active_cores_x_last_y, num_active_cores_y_with_full_x),
-            CoreCoord(num_cores_x - 1, num_active_cores_y_with_full_x)));
-    }
-    CoreRangeSet noop_cores(noop_cores_set);
 
-    // Mcast cores
-    // If total_num_cores, there is no mcasting
-    CoreCoord top_left_core = {(std::size_t)0, (std::size_t)0};
-    CoreCoord top_left_core_plus_one = {(std::size_t)1, (std::size_t)1};
-    CoreCoord bottom_right_core = {(std::size_t)num_cores_x - 1, (std::size_t)num_cores_y - 1};
-    auto top_left_core_physical = device->worker_core_from_logical_core(top_left_core);
-    auto top_left_core_plus_one_physical = device->worker_core_from_logical_core(top_left_core_plus_one);
-    auto bottom_right_core_physical = device->worker_core_from_logical_core(bottom_right_core);
+    std::cout<<"Active Cores "<<all_active_cores.str()<<std::endl;
 
-    CoreRange mcast_sender_cores(top_left_core, top_left_core);  // If single core, this kernel doesn't do mcasting
-    CoreRangeSet mcast_receiver_cores{{}};
-    uint32_t weights_mcast_sender_semaphore;
-    uint32_t weights_mcast_receiver_semaphore;
-    uint32_t act_mcast_sender_semaphore = 0;
-    uint32_t act_mcast_receiver_semaphore = 0;
-    std::vector<uint32_t> act_mcast_noc_y;
-    if (weight_width_sliced) {
-        // 2D mcast
-        if (transpose_mcast) {
-            mcast_sender_cores = CoreRange(top_left_core, CoreCoord(0, num_cores_y - 1));
-            mcast_receiver_cores = {{CoreRange(CoreCoord(1, 0), bottom_right_core)}};
-        } else {
-            mcast_sender_cores = CoreRange(top_left_core, CoreCoord(num_cores_x - 1, 0));
-            mcast_receiver_cores = {{CoreRange(CoreCoord(0, 1), bottom_right_core)}};
-        }
-        weights_mcast_sender_semaphore = tt_metal::CreateSemaphore(program, all_cores, INVALID);
-        weights_mcast_receiver_semaphore = tt_metal::CreateSemaphore(program, all_cores, INVALID);
-    } else {
-        // 1D mcast
-        if (total_num_cores > 1) {
-            std::set<CoreRange> mcast_receiver_set;
-            if (num_cores_x > 1) {
-                mcast_receiver_set.insert(CoreRange(CoreCoord(1, 0), CoreCoord(num_active_cores_x - 1, 0)));
-            }
-            if (num_cores_y > 1) {
-                mcast_receiver_set.insert(
-                    CoreRange(CoreCoord(0, 1), CoreCoord(num_active_cores_x - 1, num_active_cores_y_with_full_x - 1)));
-                if (num_active_cores_x_last_y > 0) {
-                    mcast_receiver_set.insert(CoreRange(
-                        CoreCoord(0, num_active_cores_y_with_full_x),
-                        CoreCoord(num_active_cores_x_last_y - 1, num_active_cores_y_with_full_x)));
-                }
-            }
-            mcast_receiver_cores = mcast_receiver_set;
-            weights_mcast_sender_semaphore = tt_metal::CreateSemaphore(program, all_cores, INVALID);
-            weights_mcast_receiver_semaphore = tt_metal::CreateSemaphore(program, all_cores, INVALID);
-        }
-    }
+    std::vector<uint32_t> weights_reader_compile_args;
 
-    bool read_3x3_window_in_inner_loop = false;
-    uint32_t num_weight_cb_tiles = weight_block_h_ntiles * weight_block_w_ntiles / conv_act_c_blocks;
-    bool fully_buffer_weights = false;
-    uint32_t num_act_cb_tiles = act_block_h_ntiles * act_block_w_ntiles / conv_act_c_blocks;
-    // TODO: This flag should be set in kernel logic but need this for create_CB
-    if (a.memory_config().is_sharded() and weight_size_h == 3 and weight_size_w == 3 and
-        (stride_h == 1 or stride_h == 2) and weight_width_sliced) {
-        // If conv_act_c_blocks > 1 and we have 2D conv with sharded input, we always read entire 3x3 window before
-        // pushing in reader/writer
-        // TODO: Generalize this to not make this assumption
-        read_3x3_window_in_inner_loop = true;
-        num_weight_cb_tiles *= weight_size_h * weight_size_w;
-        num_act_cb_tiles *= weight_size_h * weight_size_w;
-    } else if (num_blocks_act_h_per_core > 1) {
-        fully_buffer_weights = true;
-    }
-    uint32_t num_cb0_tilized_tiles = num_act_cb_tiles;
-
-    if (fully_buffer_weights) {
-        num_weight_cb_tiles *= window_outer;
-    } else if (per_core_out_matrix_width_ntiles < 5 && per_core_out_matrix_height_ntiles < 22) {  // Q: where are these
-                                                                                                  // numbers from?
-        num_weight_cb_tiles = num_weight_cb_tiles * 2;
-    }
-
-    if (conv_act_size_c / conv_act_c_blocks < 160 &&
-        per_core_out_matrix_height_ntiles < 22) {  // Q: where are these numbers from?
-        num_act_cb_tiles = num_act_cb_tiles * 2;   // double buffered
-    }
-
-    uint32_t writer_output_block_num_tiles = out_block_h_ntiles * weight_block_w_ntiles;
-
-    std::vector<uint32_t> reader_rt_args;
-    std::vector<uint32_t> reader_compile_time_args;
-    std::vector<uint32_t> writer_rt_args;
-    std::vector<uint32_t> writer_compile_time_args;
-
-    uint32_t conv_act_c_read_bytes = conv_act_size_c * a.element_size() / conv_act_c_blocks;
-    uint32_t act_block_w_extra_align_bytes =
-        (round_up(conv_act_size_c * weight_size_w, TILE_WIDTH) - (conv_act_size_c * weight_size_w)) * a.element_size();
-
-    uint32_t in0_block_w = act_block_w_ntiles / conv_act_c_blocks;
-    uint32_t in0_block_num_tiles = act_block_num_tiles / conv_act_c_blocks;
-    uint32_t in0_subblock_num_tiles = act_subblock_num_tiles / conv_act_c_blocks;
-    uint32_t in1_block_num_tiles = weight_block_num_tiles / conv_act_c_blocks;
-    uint32_t in0_num_blocks_w =
-        num_blocks_act_w * conv_act_c_blocks;  // Fold outer c_block loop together with weight_block_num_tiles = 9
-
-    uint32_t tilized_act_tile_size = tt_metal::detail::TileSize(tilized_act_df);
-
-    // Only enable packer l1 accumulation when there are in0_num_blocks_w > 2, otherwise
-    // unnecessary overhead for reconfigs are added. Last iteration of l1 accumulation
-    // does a spill and reload, so need more than 2 blocks to use l1 acc for packer
-    // For bias, last iteration of l1 acc remains in intermediate buffer, does not spill and reload
-    bool packer_l1_acc_en = packer_l1_acc && ((has_bias && in0_num_blocks_w > 1) || (in0_num_blocks_w > 2));
-
-    // TODO: Moving this function call to after kernel logic causes pcc fails
-    // There are additional CBs and semaphores created in 2D conv in kernel logic,
-    // so does order of create_cb calls matter?
-    auto [cb_sharded_act, cb_output] = create_CBs_for_sharded_input_v2_width(
-        program,
-        a,
-        all_cores,
-        num_act_cb_tiles,               // row major act cb
-        num_weight_cb_tiles,            // tiled weight cb
-        num_cb0_tilized_tiles,          // tiled act cb
-        writer_output_block_num_tiles,  // math output cb
-        weight_block_w_ntiles,          // reblock cb
-        writer_output_block_num_tiles,  // writer output cb, double bufferred
-        untilize_out,
-        act_df,
-        weight_df,
-        tilized_act_df,
-        out_df,
-        bias_df,
-        weight_width_sliced,
-        output,
-        bias_ntiles_per_core,
-        has_bias,
-        split_reader,
-        fp32_dest_acc_en,
-        packer_l1_acc_en);
-
-    string reader_kernel;
-    string compute_kernel;
-    string writer_mcast_sender_kernel;
-    string writer_mcast_receiver_kernel;
-    bool tilize_in0 = true;
-
-    compute_kernel = "tt_eager/tt_dnn/op_library/conv/kernels/conv_bmm_tilize_col_major_out_blocks.cpp";
-    // Input should always be sharded in this conv; always use reader kernel for input shard with halo and padding
-    if (weight_size_h == weight_size_w and weight_size_w > 1 and (stride_h == 1 or stride_h == 2)) {
-        if (weight_width_sliced) {
-            // 2D conv
-            assert(read_3x3_window_in_inner_loop == true);
-            reader_kernel =
-                "tt_eager/tt_dnn/op_library/conv/kernels/"
-                "reader_conv_activations_2d_mcast_padded_with_halo_3x3_weights_v2.cpp";
-            writer_mcast_sender_kernel =
-                "tt_eager/tt_dnn/op_library/conv/kernels/"
-                "writer_tiled_out_2d_mcast_sender_conv_weights_tiled_col_to_rm_blocks.cpp";
-            writer_mcast_receiver_kernel =
-                "tt_eager/tt_dnn/op_library/conv/kernels/"
-                "writer_tiled_out_2d_mcast_receiver_conv_weights_tiled_col_to_rm_blocks.cpp";
-            act_mcast_sender_semaphore = tt_metal::CreateSemaphore(program, all_cores, INVALID);
-            act_mcast_receiver_semaphore = tt_metal::CreateSemaphore(program, all_cores, INVALID);
-
-            if (transpose_mcast) {
-                act_mcast_noc_y.reserve(num_cores_y);
-                for (uint32_t core_idx_y = 0; core_idx_y < num_cores_y; ++core_idx_y) {
-                    act_mcast_noc_y.push_back(device->worker_core_from_logical_core({0, core_idx_y}).y);
-                }
-            } else {
-                // NOTE: using same var for x as well, this is intentional
-                act_mcast_noc_y.reserve(num_cores_x);
-                for (int32_t core_idx_x = 0; core_idx_x < num_cores_x; ++core_idx_x) {
-                    act_mcast_noc_y.push_back(device->worker_core_from_logical_core({(uint32_t)core_idx_x, 0}).x);
-                }
-            }
-
-            // For 2D convs, pre-tilize input and round robin self-mcast tilized act matrix to other cores
-            tilize_in0 = false;
-        } else {
-            // 1D conv
-            TT_ASSERT(act_block_w_datums == round_up(conv_act_size_c * weight_size_w, TILE_WIDTH));
-
-            reader_kernel =
-                "tt_eager/tt_dnn/op_library/conv/kernels/reader_conv_activations_padded_with_halo_3x3_weights_v2.cpp";
-            if (split_reader) {
-                writer_mcast_sender_kernel =
-                    "tt_eager/tt_dnn/op_library/conv/kernels/"
-                    "reader_writer_tiled_out_1d_mcast_sender_conv_weights_tiled_col_to_rm_blocks.cpp";
-                writer_mcast_receiver_kernel =
-                    "tt_eager/tt_dnn/op_library/conv/kernels/"
-                    "reader_writer_tiled_out_1d_mcast_receiver_conv_weights_tiled_col_to_rm_blocks.cpp";
-            } else {
-                writer_mcast_sender_kernel =
-                    "tt_eager/tt_dnn/op_library/conv/kernels/"
-                    "writer_tiled_out_1d_mcast_sender_conv_weights_tiled_col_to_rm_blocks.cpp";
-                writer_mcast_receiver_kernel =
-                    "tt_eager/tt_dnn/op_library/conv/kernels/"
-                    "writer_tiled_out_1d_mcast_receiver_conv_weights_tiled_col_to_rm_blocks.cpp";
-            }
-        }
-
-        // Local L1 to store array for reader indices
-        // All convs use packed uint16 indices, so each entry can be 2B (not 4)
-        CircularBufferConfig cb_for_reader_indices_config =
-            CircularBufferConfig(out_block_h_datums * 2, {{cb_for_reader_indices, tt::DataFormat::Float16_b}})
-                .set_page_size(cb_for_reader_indices, out_block_h_datums * 2);
-        cb_for_reader_indices_config.set_globally_allocated_address(*conv_reader_indices.value().buffer());
-        auto cb_for_reader_indices_id =
-            tt_metal::CreateCircularBuffer(program, all_cores, cb_for_reader_indices_config);
-
-        // Local L1 to store temp vars
-        CircularBufferConfig cb_for_l1_array_config =
-            CircularBufferConfig(32 * 2, {{cb_for_l1_array, tt::DataFormat::Float16_b}})
-                .set_page_size(cb_for_l1_array, 32 * 2);
-        auto cb_for_l1_array_id = tt_metal::CreateCircularBuffer(program, all_cores, cb_for_l1_array_config);
-    } else {
-        TT_ASSERT(false, "Sharded input not supported for this conv yet!");
-    }
-
-    if (read_3x3_window_in_inner_loop) {
-        const uint32_t window_size = weight_size_h * weight_size_w;
-        in0_block_w *= window_size;
-        in0_block_num_tiles *= window_size;
-        in0_subblock_num_tiles *= window_size;
-        in1_block_num_tiles *= window_size;
-        in0_num_blocks_w /= window_size;
-    }
-
-    reader_compile_time_args = {
-        (uint32_t)(src0_dram_buffer->buffer_type() == tt_metal::BufferType::DRAM ? 1 : 0),
-        (uint32_t)stride_h,
-        (uint32_t)stride_w,
-        (uint32_t)conv_act_size_w,
-        (uint32_t)conv_output_size_w,  // conv_output_w_last_index
-        (uint32_t)conv_act_c_read_bytes,
-        (uint32_t)window_outer,
-        (uint32_t)window_inner,
-        (uint32_t)act_block_h_datums,
-        (uint32_t)act_block_num_tiles / conv_act_c_blocks,
-        (uint32_t)weight_size_w,
-        (uint32_t)conv_act_size_w + (2 * pad_w),
-        (uint32_t)act_block_w_extra_align_bytes,  // only used for 1d systolic variant
-        (uint32_t)weight_size_h,
-        (uint32_t)num_blocks_act_h_per_core,                              // act_num_blocks_h
-        (uint32_t)in0_block_num_tiles,                                    // act_block_num_tiles
-        (uint32_t)conv_act_c_blocks,                                      // act_w_num_outer
-        (uint32_t)(transpose_mcast ? num_cores_y - 1 : num_cores_x - 1),  // act_mcast_num_dests
-        (uint32_t)(transpose_mcast ? num_cores_y - 1 : num_cores_x - 1),  // act_mcast_num_cores
-        (uint32_t)act_mcast_sender_semaphore,
-        (uint32_t)act_mcast_receiver_semaphore,
-        (uint32_t)in0_block_num_tiles * tilized_act_tile_size,  // act_mcast_sender_size_bytes
-        (uint32_t)(transpose_mcast ? 1 : 0),
-    };
-
-    // define for bias
-    std::map<string, string> writer_defines;
-    std::map<string, string> writer_mcast_sender_defines;
-    std::map<string, string> compute_defines;
-    if (output.memory_config().is_sharded()) {
-        writer_defines["SHARDED_OUT"] = "1";
-        writer_mcast_sender_defines["SHARDED_OUT"] = "1";
-    }
-    if (total_num_cores == 1) {
-        writer_mcast_sender_defines["SKIP_MCAST"] = "1";
-    }
-    if (has_bias) {
-        writer_defines["FUSE_BIAS"] = "1";
-        writer_mcast_sender_defines["FUSE_BIAS"] = "1";
-        compute_defines["FUSE_BIAS"] = "1";
-    }
-
-    if (fuse_relu) {
-        compute_defines["PACK_RELU"] = "1";
-    }
-
-    if (!tilize_in0) {
-        compute_defines["PRE_TILIZE"] = "1";
-    }
-
-    if (split_reader) {
-        reader_defines["SPLIT_READER"] = "1";
-        compute_defines["SPLIT_READER"] = "1";
-    }
-
-    if (packer_l1_acc_en) {
-        compute_defines["PACKER_L1_ACC"] = "1";
-    }
-
-    writer_compile_time_args = {
-        (uint32_t)(dst_dram_buffer->buffer_type() == tt_metal::BufferType::DRAM ? 1 : 0),
-        out0_cb,
+    weights_reader_compile_args={
         weight_cb,
-        bias_cb,
-        (uint32_t)(bias_buffer == nullptr ? 0 : (bias_buffer->buffer_type() == BufferType::DRAM ? 1 : 0)),
-        num_blocks_act_w,  // = number of blocks of weight in height dim
-        in1_block_num_tiles,
-        conv_act_c_blocks,
-        weight_block_h_ntiles / conv_act_c_blocks,
-        weight_block_w_ntiles,
-        weight_matrix_width_ntiles,                          // weight_stride_h
-        weight_matrix_width_ntiles * weight_block_h_ntiles,  // weight_next_block_stride_h,
-        weight_block_w_ntiles,                               // weight_next_block_stride_w
-
-        // bias
-        bias_ntiles_per_core,
-
-        output_width_num_tiles,                          // out_next_tile_stride_h
-        1,                                               // out_next_tile_stride_w
-        out_subblock_h_ntiles * output_width_num_tiles,  // out_next_subblock_stride_h
-        out_subblock_w_ntiles,                           // out_next_subblock_stride_w
-        act_block_h_ntiles * output_width_num_tiles,     // out_next_block_stride_h
-        // weight_block_w_ntiles, // out_next_block_stride_w
-        out_subblock_h_ntiles,
-        out_subblock_w_ntiles,
-        out_subblock_num_tiles,
-        act_block_h_ntiles / out_subblock_h_ntiles,     // out_num_subblocks_h
-        weight_block_w_ntiles / out_subblock_w_ntiles,  // out_num_subblocks_w
-        num_blocks_act_h_per_core,                      // out_num_blocks_h
-        num_blocks_weight_w_per_core,                   // out_num_blocks_w
-        act_block_h_ntiles,                             // out_block_height_num_tiles
-        output_height_num_tiles,                        // out_height_num_tiles without block shape padding
-        output_width_num_tiles,                         // out_width_num_tiles withoug block shape padding
-
-        out_dram_addr,
-        weight_dram_addr,
-        bias_dram_addr,
+        act_matrix_width_ntiles, //Height of Weights Matrix in Tiles
+        per_core_out_matrix_width_ntiles,  //Width of Weights Matrix fetched by this core in Tiles
+        weight_matrix_width_ntiles, //Width of the Full Weights Matrix
     };
-    if (split_reader) {
-        std::vector<uint32_t> split_reader_args = {
-            (uint32_t)act_block_h_datums,
-            (uint32_t)act_block_num_tiles / conv_act_c_blocks,
-            (uint32_t)conv_act_c_read_bytes,
-            (uint32_t)weight_size_w * conv_act_c_read_bytes,                  // coalesced_read_bytes
-            (uint32_t)(conv_act_size_w + 2 * pad_w) * conv_act_c_read_bytes,  // window_outer_offset
-            (uint32_t)act_block_w_extra_align_bytes,                          // only used for 1d systolic variant
-        };
-        writer_compile_time_args.insert(
-            writer_compile_time_args.end(), split_reader_args.begin(), split_reader_args.end());
-    }
 
-    vector<uint32_t> compute_kernel_args = {
-        in0_block_w,
-        act_num_subblocks,
-        in0_block_num_tiles,
-        in0_subblock_num_tiles,
-        act_subblock_h_ntiles,
+    CircularBufferConfig cb_weight_config =
+        CircularBufferConfig(act_matrix_width_ntiles * per_core_out_matrix_width_ntiles * weight_tile_size, {{weight_cb, weight_df}})
+            .set_page_size(weight_cb, weight_tile_size);
+    auto cb_weight = tt_metal::CreateCircularBuffer(program, all_active_cores, cb_weight_config);
 
-        weight_num_subblocks,
-        in1_block_num_tiles,
-        weight_block_w_ntiles,
-
-        num_blocks_act_h_per_core,
-        in0_num_blocks_w,
-        num_blocks_weight_w_per_core,
-
-        out_subblock_h_ntiles,
-        out_subblock_w_ntiles,
-        out_subblock_num_tiles,
-
-        tilize_in0,
-        untilize_out,
-
-        bias_ntiles_per_core};
-
-    auto writer_mcast_noc = NOC::NOC_0;
-    auto reader_noc = writer_mcast_noc == NOC::NOC_0 ? NOC::NOC_1 : NOC::NOC_0;
-    auto writer_mcast_sender_id = CreateKernel(
+    const string weights_reader_kernel_path = "tt_eager/tt_dnn/op_library/conv/kernels/width_sharded_weights_reader.cpp";
+    auto weights_reader_kernel_id = CreateKernel(
         program,
-        writer_mcast_sender_kernel,
-        mcast_sender_cores,
-        DataMovementConfig{
-            .processor = DataMovementProcessor::RISCV_0,
-            .noc = writer_mcast_noc,
-            .compile_args = writer_compile_time_args,
-            .defines = writer_mcast_sender_defines});
-
-    KernelHandle writer_mcast_receiver_id = -1;
-    if (total_num_cores > 1) {
-        writer_mcast_receiver_id = CreateKernel(
-            program,
-            writer_mcast_receiver_kernel,
-            mcast_receiver_cores,
-            DataMovementConfig{
-                .processor = DataMovementProcessor::RISCV_0,
-                .noc = writer_mcast_noc,
-                .compile_args = writer_compile_time_args,
-                .defines = writer_defines});
-    }
-
-    auto reader_id = CreateKernel(
-        program,
-        reader_kernel,
+        weights_reader_kernel_path,
         all_active_cores,
         DataMovementConfig{
-            .processor = DataMovementProcessor::RISCV_1,
-            .noc = reader_noc,
-            .compile_args = reader_compile_time_args,
-            .defines = reader_defines});
-
-    // Compile compute kernel for active cores only
-    // Compile blank kernel for noop cores
-    auto compute_id = CreateKernel(
-        program,
-        compute_kernel,
-        all_active_cores,
-        ComputeConfig{
-            .math_fidelity = math_fidelity,
-            .fp32_dest_acc_en = fp32_dest_acc_en,
-            .compile_args = compute_kernel_args,
-            .defines = compute_defines});
-
-    for (uint32_t core_i = 0; core_i < total_active_num_cores; core_i++) {
-        uint32_t core_x_i = core_i % num_cores_x;
-        uint32_t core_y_i = core_i / num_cores_x;
-        CoreRange core(CoreCoord(core_x_i, core_y_i), CoreCoord(core_x_i, core_y_i));
-        bool noop_core = false;
-
-        // per core specific args
-        uint32_t act_slice_i;
-        uint32_t weight_slice_i;
-        if (weight_width_sliced && transpose_mcast || !weight_width_sliced) {
-            act_slice_i = core_i % total_num_cores_per_weight_slice;
-            weight_slice_i = core_i / total_num_cores_per_weight_slice;
-        } else {
-            act_slice_i = core_i / total_num_cores_per_act_slice;
-            weight_slice_i = core_i % total_num_cores_per_act_slice;
+            .processor=DataMovementProcessor::RISCV_1,
+            .noc=NOC::NOC_1,
+            .compile_args=weights_reader_compile_args
         }
-        uint32_t out_start_tile_id = (act_slice_i * per_core_out_matrix_height_ntiles * weight_matrix_width_ntiles) +
-                                     (weight_slice_i * per_core_out_matrix_width_ntiles);
-        uint32_t out_start_tile_id_h = act_slice_i * per_core_out_matrix_height_ntiles;
-        uint32_t out_start_tile_id_w = weight_slice_i * per_core_out_matrix_width_ntiles;
-        uint32_t bias_tile_offset = weight_slice_i * per_core_out_matrix_width_ntiles;
-        if (has_bias) {
-            assert(bias_tile_offset < bias_ntiles);
-        }
+    );
 
-        if (weight_width_sliced) {
-            auto shard_shape = a.shard_spec().value().shape;
-            uint32_t tilized_act_tile_size = tt_metal::detail::TileSize(tilized_act_df);
-
-            bool reader_is_noc_0 = reader_noc == NOC::NOC_0;
-
-            TT_ASSERT(!reader_is_noc_0);
-
-            if (transpose_mcast) {
-                CoreCoord bottom_core = {(std::size_t)core_x_i, (std::size_t)num_cores_y - 1};
-                auto bottom_core_physical = device->worker_core_from_logical_core(bottom_core);
-
-                uint32_t act_mcast_dest_noc_start_x = bottom_core_physical.x;
-                uint32_t act_mcast_dest_noc_start_y =
-                    reader_is_noc_0 ? top_left_core_physical.y : bottom_core_physical.y;
-                uint32_t act_mcast_dest_noc_end_x = bottom_core_physical.x;
-                uint32_t act_mcast_dest_noc_end_y = reader_is_noc_0 ? bottom_core_physical.y : top_left_core_physical.y;
-                reader_rt_args = {
-                    (uint32_t)noop_core,
-
-                    // mcast args
-                    act_mcast_dest_noc_start_x,
-                    act_mcast_dest_noc_start_y,
-                    act_mcast_dest_noc_end_x,
-                    act_mcast_dest_noc_end_y,
-                    core_y_i,                          // act_mcast_sender_id (goes down the column)
-                    (uint32_t)bottom_core_physical.x,  // act_mcast_sender_noc_x
-                };
-                reader_rt_args.insert(
-                    reader_rt_args.end(), act_mcast_noc_y.begin(), act_mcast_noc_y.end());  // act_mcast_sender_noc_y
-            } else {
-                CoreCoord core = {core_x_i, core_y_i};
-                auto core_physical = device->worker_core_from_logical_core(core);
-                CoreCoord bottom_right_core = {(std::size_t)num_cores_x - 1, (std::size_t)num_cores_y - 1};
-                auto bottom_right_core_physical = device->worker_core_from_logical_core(bottom_right_core);
-
-                uint32_t act_mcast_dest_noc_start_x =
-                    reader_is_noc_0 ? top_left_core_physical.x : bottom_right_core_physical.x;
-                uint32_t act_mcast_dest_noc_start_y = core_physical.y;
-                uint32_t act_mcast_dest_noc_end_x =
-                    reader_is_noc_0 ? bottom_right_core_physical.x : top_left_core_physical.x;
-                uint32_t act_mcast_dest_noc_end_y = core_physical.y;
-                reader_rt_args = {
-                    (uint32_t)noop_core,
-
-                    // mcast args
-                    act_mcast_dest_noc_start_x,
-                    act_mcast_dest_noc_start_y,
-                    act_mcast_dest_noc_end_x,
-                    act_mcast_dest_noc_end_y,
-                    core_x_i,                   // act_mcast_sender_id (goes along the row)
-                    (uint32_t)core_physical.y,  // act_mcast_sender_noc_x
-                };
-                reader_rt_args.insert(
-                    reader_rt_args.end(), act_mcast_noc_y.begin(), act_mcast_noc_y.end());  // act_mcast_sender_noc_y
-            }
-        } else {
-            reader_rt_args = {(uint32_t)noop_core};
-        }
-
-        // log_debug("Core: {}, READER RT ARGS: {}", core, reader_rt_args.size());
-
-        SetRuntimeArgs(program, reader_id, core, reader_rt_args);
-
-        writer_rt_args = {
-            out_dram_addr,
+    for(uint32_t core_index = 0; core_index <total_active_num_cores; core_index++)
+    {
+        std::vector<uint32_t> weights_reader_runtime_args;
+        uint32_t core_x = core_index%num_cores_x;
+        uint32_t core_y = core_index/num_cores_x;
+        weights_reader_runtime_args = {
             weight_dram_addr,
-            bias_dram_addr,
-
-            output_width_num_tiles,                          // out_next_tile_stride_h
-            1,                                               // out_next_tile_stride_w
-            out_subblock_h_ntiles * output_width_num_tiles,  // out_next_subblock_stride_h
-            out_subblock_w_ntiles,                           // out_next_subblock_stride_w
-            act_block_h_ntiles * output_width_num_tiles,     // out_next_block_stride_h
-            weight_block_w_ntiles,                           // out_next_block_stride_w
-            out_subblock_h_ntiles,
-            out_subblock_w_ntiles,
-            out_subblock_num_tiles,
-            act_block_h_ntiles / out_subblock_h_ntiles,     // out_num_subblocks_h
-            weight_block_w_ntiles / out_subblock_w_ntiles,  // out_num_subblocks_w
-            num_blocks_act_h_per_core,                      // out_num_blocks_h
-            num_blocks_weight_w_per_core,                   // out_num_blocks_w
-            act_block_h_ntiles,                             // out_block_height_num_tiles
-            output_height_num_tiles,                        // out_height_num_tiles without block shape padding
-            output_width_num_tiles,                         // out_width_num_tiles withoug block shape padding
-
-            out_start_tile_id,
-            out_start_tile_id_h,
-            out_start_tile_id_w,
-
-            num_blocks_act_w,  // = number of blocks of weight in height dim
-            in1_block_num_tiles,
-            conv_act_c_blocks,
-            weight_block_h_ntiles / conv_act_c_blocks,
-            weight_block_w_ntiles,
-            weight_matrix_width_ntiles,                          // weight_stride_h
-            weight_matrix_width_ntiles * weight_block_h_ntiles,  // weight_next_block_stride_h,
-            weight_block_w_ntiles,                               // weight_next_block_stride_w
-
-            // bias
-            bias_ntiles_per_core,
-            bias_tile_offset,
-
-            (uint32_t)noop_core};
-
-        // Mcast sender
-        if (weight_width_sliced) {
-            // 2D mcast
-            if (transpose_mcast) {
-                CoreCoord right_core = {(std::size_t)num_cores_x - 1, (std::size_t)core_y_i};
-                auto right_core_physical = device->worker_core_from_logical_core(right_core);
-                if (core_x_i == 0) {
-                    // sender
-                    if (writer_mcast_noc == NOC::NOC_0) {
-                        writer_rt_args.push_back(top_left_core_plus_one_physical.x);  // weights_mcast_dest_noc_start_x
-                        writer_rt_args.push_back(right_core_physical.y);              // weights_mcast_dest_noc_start_y
-                        writer_rt_args.push_back(bottom_right_core_physical.x);       // weights_mcast_dest_noc_end_x
-                        writer_rt_args.push_back(right_core_physical.y);              // weights_mcast_dest_noc_end_y
-                    } else {
-                        writer_rt_args.push_back(bottom_right_core_physical.x);       // weights_mcast_dest_noc_start_x
-                        writer_rt_args.push_back(right_core_physical.y);              // weights_mcast_dest_noc_start_y
-                        writer_rt_args.push_back(top_left_core_plus_one_physical.x);  // weights_mcast_dest_noc_end_x
-                        writer_rt_args.push_back(right_core_physical.y);              // weights_mcast_dest_noc_end_y
-                    }
-
-                    writer_rt_args.push_back(num_cores_x - 1);  // weights_mcast_num_dests
-                    writer_rt_args.push_back(num_cores_x - 1);  // weights_mcast_num_cores
-                    writer_rt_args.push_back(weights_mcast_sender_semaphore);
-                    writer_rt_args.push_back(weights_mcast_receiver_semaphore);
-
-                    SetRuntimeArgs(program, writer_mcast_sender_id, core, writer_rt_args);
-                } else {
-                    // receiver
-                    writer_rt_args.push_back(top_left_core_physical.x);  // weights_mcast_sender_noc_x
-                    writer_rt_args.push_back(right_core_physical.y);     // weights_mcast_sender_noc_y
-                    writer_rt_args.push_back(weights_mcast_sender_semaphore);
-                    writer_rt_args.push_back(weights_mcast_receiver_semaphore);
-
-                    SetRuntimeArgs(program, writer_mcast_receiver_id, core, writer_rt_args);
-                }
-            } else {
-                CoreCoord top_core = {(std::size_t)core_x_i, 0};
-                auto top_core_physical = device->worker_core_from_logical_core(top_core);
-                TT_ASSERT(writer_mcast_noc == NOC::NOC_0);
-                if (core_y_i == 0) {
-                    // sender
-                    if (writer_mcast_noc == NOC::NOC_0) {
-                        writer_rt_args.push_back(top_core_physical.x);                // weights_mcast_dest_noc_start_x
-                        writer_rt_args.push_back(top_left_core_plus_one_physical.y);  // weights_mcast_dest_noc_start_y
-                        writer_rt_args.push_back(top_core_physical.x);                // weights_mcast_dest_noc_end_x
-                        writer_rt_args.push_back(bottom_right_core_physical.y);       // weights_mcast_dest_noc_end_y
-                    } else {
-                        // TODO: ...
-                        TT_ASSERT(false, "TODO: Writer on NOC 1 not supported yet!");
-                        // writer_rt_args.push_back(bottom_right_core_physical.x); // weights_mcast_dest_noc_start_x
-                        // writer_rt_args.push_back(right_core_physical.y); // weights_mcast_dest_noc_start_y
-                        // writer_rt_args.push_back(top_left_core_plus_one_physical.x); // weights_mcast_dest_noc_end_x
-                        // writer_rt_args.push_back(right_core_physical.y); // weights_mcast_dest_noc_end_y
-                    }
-
-                    writer_rt_args.push_back(num_cores_y - 1);  // weights_mcast_num_dests
-                    writer_rt_args.push_back(num_cores_y - 1);  // weights_mcast_num_cores
-                    writer_rt_args.push_back(weights_mcast_sender_semaphore);
-                    writer_rt_args.push_back(weights_mcast_receiver_semaphore);
-
-                    SetRuntimeArgs(program, writer_mcast_sender_id, core, writer_rt_args);
-                } else {
-                    // receiver
-                    writer_rt_args.push_back(top_core_physical.x);       // weights_mcast_sender_noc_x
-                    writer_rt_args.push_back(top_left_core_physical.y);  // weights_mcast_sender_noc_y
-                    writer_rt_args.push_back(weights_mcast_sender_semaphore);
-                    writer_rt_args.push_back(weights_mcast_receiver_semaphore);
-
-                    SetRuntimeArgs(program, writer_mcast_receiver_id, core, writer_rt_args);
-                }
-            }
-        } else {
-            // 1D mcast
-            if (core_x_i == 0 and core_y_i == 0) {
-                // sender
-                if (writer_mcast_noc == NOC::NOC_0) {
-                    writer_rt_args.push_back(top_left_core_physical.x);      // weights_mcast_dest_noc_start_x
-                    writer_rt_args.push_back(top_left_core_physical.y);      // weights_mcast_dest_noc_start_y
-                    writer_rt_args.push_back(bottom_right_core_physical.x);  // weights_mcast_dest_noc_end_x
-                    writer_rt_args.push_back(bottom_right_core_physical.y);  // weights_mcast_dest_noc_end_y
-                } else {
-                    writer_rt_args.push_back(bottom_right_core_physical.x);  // weights_mcast_dest_noc_start_x
-                    writer_rt_args.push_back(bottom_right_core_physical.y);  // weights_mcast_dest_noc_start_y
-                    writer_rt_args.push_back(top_left_core_physical.x);      // weights_mcast_dest_noc_end_x
-                    writer_rt_args.push_back(top_left_core_physical.y);      // weights_mcast_dest_noc_end_y
-                }
-                writer_rt_args.push_back(total_active_num_cores - 1);  // weights_mcast_num_dests
-                writer_rt_args.push_back(total_num_cores - 1);         // weights_mcast_num_cores
-                writer_rt_args.push_back(weights_mcast_sender_semaphore);
-                writer_rt_args.push_back(weights_mcast_receiver_semaphore);
-
-                SetRuntimeArgs(program, writer_mcast_sender_id, core, writer_rt_args);
-            } else {
-                // receiver
-                writer_rt_args.push_back(top_left_core_physical.x);  // weights_mcast_sender_noc_x
-                writer_rt_args.push_back(top_left_core_physical.y);  // weights_mcast_sender_noc_y
-                writer_rt_args.push_back(weights_mcast_sender_semaphore);
-                writer_rt_args.push_back(weights_mcast_receiver_semaphore);
-
-                // log_debug("Core: {}, WRITER RT ARGS: {}", core, writer_rt_args.size());
-                SetRuntimeArgs(program, writer_mcast_receiver_id, core, writer_rt_args);
-            }
-        }
-
-    }  // for num_cores
-
-    auto mcast_sender_cores_vec = grid_to_cores(mcast_sender_cores.start, mcast_sender_cores.end, true);
-    auto mcast_receiver_cores_vec = corerange_to_cores(mcast_receiver_cores, std::nullopt, true);
-    auto override_runtime_arguments_callback =
-        [reader_kernel_id = reader_id,
-         mcast_sender_cores = mcast_sender_cores_vec,
-         writer_mcast_sender_id = writer_mcast_sender_id,
-         mcast_receiver_cores = mcast_receiver_cores_vec,
-         writer_mcast_receiver_id = writer_mcast_receiver_id,
-         cb_sharded_act = cb_sharded_act,
-         cb_output = cb_output,
-         total_active_num_cores = total_active_num_cores,
-         num_cores_x = num_cores_x,
-         num_cores_y = num_cores_y,
-         has_bias = has_bias](
-            const void* operation,
-            Program& program,
-            const std::vector<Tensor>& input_tensors,
-            const std::vector<std::optional<const Tensor>>& optional_input_tensors,
-            const std::vector<Tensor>& output_tensors) {
-            // Reader config indices is an optional static sharded tensor, so no need to update address
-            TT_ASSERT(input_tensors.size() + optional_input_tensors.size() == 4);
-            TT_ASSERT(output_tensors.size() == 1);
-
-            auto src_buffer_a = input_tensors.at(0).buffer();
-            auto src_buffer_b = input_tensors.at(1).buffer();
-            bool src_a_is_sharded = input_tensors[0].is_sharded();
-
-            std::optional<Buffer*> src_buffer_c = std::nullopt;
-            if (has_bias) {
-                src_buffer_c = optional_input_tensors.at(0).value().buffer();
-                TT_ASSERT(src_buffer_c.value() != nullptr);
-            }
-
-            auto dst_buffer = output_tensors.at(0).buffer();
-            bool out_sharded = output_tensors[0].is_sharded();
-
-            auto& reader_kernel_args_by_core = GetRuntimeArgs(program, reader_kernel_id);
-
-            auto& writer_sender_kernel_args_by_core = GetRuntimeArgs(program, writer_mcast_sender_id);
-            for (const auto& core : mcast_sender_cores) {
-                if (!src_a_is_sharded) {
-                    auto& runtime_args = reader_kernel_args_by_core[core.x][core.y];
-                    runtime_args[0] = src_buffer_a->address();
-                }
-                auto& runtime_args = writer_sender_kernel_args_by_core[core.x][core.y];
-                runtime_args[0] = dst_buffer->address();
-                runtime_args[1] = src_buffer_b->address();
-                if (has_bias) {
-                    runtime_args[2] = (*src_buffer_c)->address();
-                }
-            }
-
-            if (mcast_receiver_cores.size() > 0) {
-                auto& writer_receiver_kernel_args_by_core = GetRuntimeArgs(program, writer_mcast_receiver_id);
-                for (const auto& core : mcast_receiver_cores) {
-                    if (!src_a_is_sharded) {
-                        auto& runtime_args = reader_kernel_args_by_core[core.x][core.y];
-                        runtime_args[0] = src_buffer_a->address();
-                    }
-                    auto& runtime_args = writer_receiver_kernel_args_by_core[core.x][core.y];
-                    runtime_args[0] = dst_buffer->address();
-                    runtime_args[1] = src_buffer_b->address();
-                    if (has_bias) {
-                        runtime_args[2] = (*src_buffer_c)->address();
-                    }
-                }
-            }
-
-            if (src_a_is_sharded) {
-                UpdateDynamicCircularBufferAddress(program, cb_sharded_act, *src_buffer_a);
-            }
-
-            if (out_sharded) {
-                UpdateDynamicCircularBufferAddress(program, cb_output, *dst_buffer);
-            }
+            core_x,
+            core_y,
+            core_index
         };
-    return {.program = std::move(program), .override_runtime_arguments_callback = override_runtime_arguments_callback};
+        SetRuntimeArgs(program, weights_reader_kernel_id, CoreCoord(core_x,core_y), weights_reader_runtime_args);
+
+    }
+
+
+
+
+
+
+
+    // auto mcast_sender_cores_vec = grid_to_cores(mcast_sender_cores.start, mcast_sender_cores.end, true);
+    // auto mcast_receiver_cores_vec = corerange_to_cores(mcast_receiver_cores, std::nullopt, true);
+    // auto override_runtime_arguments_callback =
+    //     [reader_kernel_id = reader_id,
+    //      mcast_sender_cores = mcast_sender_cores_vec,
+    //      writer_mcast_sender_id = writer_mcast_sender_id,
+    //      mcast_receiver_cores = mcast_receiver_cores_vec,
+    //      writer_mcast_receiver_id = writer_mcast_receiver_id,
+    //      cb_sharded_act = cb_sharded_act,
+    //      cb_output = cb_output,
+    //      total_active_num_cores = total_active_num_cores,
+    //      num_cores_x = num_cores_x,
+    //      num_cores_y = num_cores_y,
+    //      has_bias = has_bias](
+    //         const void* operation,
+    //         Program& program,
+    //         const std::vector<Tensor>& input_tensors,
+    //         const std::vector<std::optional<const Tensor>>& optional_input_tensors,
+    //         const std::vector<Tensor>& output_tensors) {
+    //         // Reader config indices is an optional static sharded tensor, so no need to update address
+    //         TT_ASSERT(input_tensors.size() + optional_input_tensors.size() == 4);
+    //         TT_ASSERT(output_tensors.size() == 1);
+
+    //         auto src_buffer_a = input_tensors.at(0).buffer();
+    //         auto src_buffer_b = input_tensors.at(1).buffer();
+    //         bool src_a_is_sharded = input_tensors[0].is_sharded();
+
+    //         std::optional<Buffer*> src_buffer_c = std::nullopt;
+    //         if (has_bias) {
+    //             src_buffer_c = optional_input_tensors.at(0).value().buffer();
+    //             TT_ASSERT(src_buffer_c.value() != nullptr);
+    //         }
+
+    //         auto dst_buffer = output_tensors.at(0).buffer();
+    //         bool out_sharded = output_tensors[0].is_sharded();
+
+    //         auto& reader_kernel_args_by_core = GetRuntimeArgs(program, reader_kernel_id);
+
+    //         auto& writer_sender_kernel_args_by_core = GetRuntimeArgs(program, writer_mcast_sender_id);
+    //         for (const auto& core : mcast_sender_cores) {
+    //             if (!src_a_is_sharded) {
+    //                 auto& runtime_args = reader_kernel_args_by_core[core.x][core.y];
+    //                 runtime_args[0] = src_buffer_a->address();
+    //             }
+    //             auto& runtime_args = writer_sender_kernel_args_by_core[core.x][core.y];
+    //             runtime_args[0] = dst_buffer->address();
+    //             runtime_args[1] = src_buffer_b->address();
+    //             if (has_bias) {
+    //                 runtime_args[2] = (*src_buffer_c)->address();
+    //             }
+    //         }
+
+    //         if (mcast_receiver_cores.size() > 0) {
+    //             auto& writer_receiver_kernel_args_by_core = GetRuntimeArgs(program, writer_mcast_receiver_id);
+    //             for (const auto& core : mcast_receiver_cores) {
+    //                 if (!src_a_is_sharded) {
+    //                     auto& runtime_args = reader_kernel_args_by_core[core.x][core.y];
+    //                     runtime_args[0] = src_buffer_a->address();
+    //                 }
+    //                 auto& runtime_args = writer_receiver_kernel_args_by_core[core.x][core.y];
+    //                 runtime_args[0] = dst_buffer->address();
+    //                 runtime_args[1] = src_buffer_b->address();
+    //                 if (has_bias) {
+    //                     runtime_args[2] = (*src_buffer_c)->address();
+    //                 }
+    //             }
+    //         }
+
+    //         if (src_a_is_sharded) {
+    //             UpdateDynamicCircularBufferAddress(program, cb_sharded_act, *src_buffer_a);
+    //         }
+
+    //         if (out_sharded) {
+    //             UpdateDynamicCircularBufferAddress(program, cb_output, *dst_buffer);
+    //         }
+    //     };
+
+
+    return {.program = std::move(program), .override_runtime_arguments_callback = null_override_runtime_arguments_callback};
     }
 }  // namespace tt_metal
 
