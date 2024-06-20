@@ -66,15 +66,20 @@ jobs:
           GITHUB_USER=tenstorrent-github-bot
           git config --global user.email "tenstorrent-github-bot@tenstorrent.com"
           git config --global user.name "tenstorrent-github-bot"
+          echo "About to clone"
           git clone https://${GITHUB_USER}:${{ secrets.TTBOT_DOCS_ACCESS }}@github.com/tenstorrent/docs-test.git
           git remote set-url origin https://${GITHUB_USER}::${{ secrets.TTBOT_DOCS_ACCESS }}@github.com/tenstorrent/docs-test.git
+          echo "Fetching origin"
           git fetch origin
           git checkout main
+          echo "Preparing assets"
           cp -r tt-metalium/* docs-test/tt-metalium
+          echo "Adding version tags"
           python update_tags.py tt-metalium $DOCS_VERSION
           git add .
           git commit -m "update metalium docs from pipeline CI_PIPELINE_ID with tag CI_COMMIT_TAG"
           git tag -a $DOCS_VERSION -m "metalium documentation version CI_COMMIT_TAG"
+          echo "Pushing the new docs"
           git push && git push --tags
       - name: Upload tt-metalium docs
         uses: actions/upload-artifact@v4
