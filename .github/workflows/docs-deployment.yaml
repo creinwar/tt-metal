@@ -66,8 +66,8 @@ jobs:
           GITHUB_USER=tenstorrent-github-bot
           git config --global user.email "tenstorrent-github-bot@tenstorrent.com"
           git config --global user.name "tenstorrent-github-bot"
-          git clone https://${GITHUB_USER}:${TTBOT_DOCS_ACCESS}@github.com/tenstorrent/docs-test.git
-          git remote set-url origin https://${GITHUB_USER}:${TTBOT_DOCS_ACCESS}@github.com/tenstorrent/docs-test.git
+          git clone https://${GITHUB_USER}:${{ secrets.TTBOT_DOCS_ACCESS }}@github.com/tenstorrent/docs-test.git
+          git remote set-url origin https://${GITHUB_USER}::${{ secrets.TTBOT_DOCS_ACCESS }}@github.com/tenstorrent/docs-test.git
           git checkout main
           cp -r tt-metalium/* docs-test/tt-metalium
           python update_tags.py tt-metalium $DOCS_VERSION
@@ -90,8 +90,8 @@ jobs:
           GITHUB_USER=tenstorrent-github-bot
           git config --global user.email "tenstorrent-github-bot@tenstorrent.com"
           git config --global user.name "tenstorrent-github-bot"
-          git clone https://${GITHUB_USER}:${TTBOT_DOCS_ACCESS}@github.com/tenstorrent/docs-test.git
-          git remote set-url origin https://${GITHUB_USER}:${TTBOT_DOCS_ACCESS}@github.com/tenstorrent/docs-test.git
+          git clone https://${GITHUB_USER}:${{ secrets.TTBOT_DOCS_ACCESS }}@github.com/tenstorrent/docs-test.git
+          git remote set-url origin https://${GITHUB_USER}:${{ secrets.TTBOT_DOCS_ACCESS }}@github.com/tenstorrent/docs-test.git
           git checkout main
           cp -r ttnn-docs/* docs-test/ttnn
           python update_tags.py ttnn $DOCS_VERSION
