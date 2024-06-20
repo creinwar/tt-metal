@@ -70,13 +70,8 @@ jobs:
           git clone https://${GITHUB_USER}:${{ secrets.TTBOT_DOCS_ACCESS }}@github.com/tenstorrent/docs-test.git
           git remote set-url origin https://${GITHUB_USER}::${{ secrets.TTBOT_DOCS_ACCESS }}@github.com/tenstorrent/docs-test.git
           cd docs-test
-          echo "Fetching origin"
-          echo `git branch -v`
-          git fetch origin
-          git checkout main
           echo "Preparing assets"
-          cd ..
-          cp -r tt-metalium/* docs-test/tt-metalium
+          cp -r ../tt-metalium/* tt-metalium
           echo "Adding version tags"
           python update_tags.py tt-metalium $DOCS_VERSION
           git add .
@@ -102,10 +97,7 @@ jobs:
           git clone https://${GITHUB_USER}:${{ secrets.TTBOT_DOCS_ACCESS }}@github.com/tenstorrent/docs-test.git
           git remote set-url origin https://${GITHUB_USER}:${{ secrets.TTBOT_DOCS_ACCESS }}@github.com/tenstorrent/docs-test.git
           cd docs-test
-          git fetch origin
-          git checkout main
-          cd ..
-          cp -r ttnn-docs/* docs-test/ttnn
+          cp -r ../ttnn-docs/* ttnn
           python update_tags.py ttnn $DOCS_VERSION
           git add .
           git commit -m "update ttnn docs from pipeline CI_PIPELINE_ID with tag CI_COMMIT_TAG"
