@@ -69,6 +69,7 @@ jobs:
           echo "About to clone"
           git clone https://${GITHUB_USER}:${{ secrets.TTBOT_DOCS_ACCESS }}@github.com/tenstorrent/docs-test.git
           git remote set-url origin https://${GITHUB_USER}::${{ secrets.TTBOT_DOCS_ACCESS }}@github.com/tenstorrent/docs-test.git
+          cd docs-test
           echo "Fetching origin"
           echo `git branch -v`
           git fetch origin
@@ -99,6 +100,7 @@ jobs:
           git config --global user.name "${GITHUB_USER}"
           git clone https://${GITHUB_USER}:${{ secrets.TTBOT_DOCS_ACCESS }}@github.com/tenstorrent/docs-test.git
           git remote set-url origin https://${GITHUB_USER}:${{ secrets.TTBOT_DOCS_ACCESS }}@github.com/tenstorrent/docs-test.git
+          cd docs-test
           git fetch origin
           git checkout main
           cp -r ttnn-docs/* docs-test/ttnn
