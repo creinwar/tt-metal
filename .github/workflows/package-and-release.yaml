@@ -121,3 +121,8 @@ jobs:
             infra/machine_setup/scripts/setup_hugepages.py
             metal_libs-*+*.whl
           fail_on_unmatched_files: true
+    build-docs:
+      needs: create-and-upload-draft-release
+      uses: ./.github/workflows/docs-deployment.yaml
+      secrets: inherit
+        uses: ./.github/workflows/docs-deployment.yaml

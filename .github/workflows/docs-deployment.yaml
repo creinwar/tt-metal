@@ -70,6 +70,7 @@ jobs:
           git clone https://${GITHUB_USER}:${{ secrets.TTBOT_DOCS_ACCESS }}@github.com/tenstorrent/docs-test.git
           git remote set-url origin https://${GITHUB_USER}::${{ secrets.TTBOT_DOCS_ACCESS }}@github.com/tenstorrent/docs-test.git
           echo "Fetching origin"
+          echo `git branch -v`
           git fetch origin
           git checkout main
           echo "Preparing assets"
