@@ -203,7 +203,6 @@ uint32_t read_from_pcie(volatile tt_l1_ptr prefetch_q_entry_type *& prefetch_q_r
 //  -  cmd_ready,  prefetch_q_ready,  read_pending: issue and tag read
 template<uint32_t preamble_size>
 void fetch_q_get_cmds(uint32_t& fence, uint32_t& cmd_ptr, uint32_t& pcie_read_ptr) {
-
     static uint32_t pending_read_size = 0;
     static volatile tt_l1_ptr prefetch_q_entry_type* prefetch_q_rd_ptr = (volatile tt_l1_ptr prefetch_q_entry_type*)prefetch_q_base;
     constexpr uint32_t prefetch_q_msb_mask = 1u << (sizeof(prefetch_q_entry_type) * CHAR_BIT - 1);
@@ -279,6 +278,7 @@ void fetch_q_get_cmds(uint32_t& fence, uint32_t& cmd_ptr, uint32_t& pcie_read_pt
             // By here, prefetch_q_ready must be false
             // Nothing to fetch, nothing pending, nothing available, stall on host
             DEBUG_STATUS("HQW");
+
             while ((fetch_size = *prefetch_q_rd_ptr) == 0);
             fetch_q_get_cmds<preamble_size>(fence, cmd_ptr, pcie_read_ptr);
             DEBUG_STATUS("HQD");
@@ -1183,7 +1183,7 @@ static uint32_t process_relay_inline_all(uint32_t data_ptr, uint32_t fence, bool
         // OK to continue prefetching once the page credits are returned
         stall_state = NOT_STALLED;
     }
-
+    DPRINT << "Send: " << length << ENDL();
     uint32_t downstream_pages_left = (downstream_cb_end - downstream_data_ptr) >> downstream_cb_log_page_size;
     if (downstream_pages_left >= npages) {
         noc_async_write(data_ptr, get_noc_addr_helper(downstream_noc_xy, downstream_data_ptr), length);
@@ -1204,7 +1204,6 @@ static uint32_t process_relay_inline_all(uint32_t data_ptr, uint32_t fence, bool
     // XXXXX - painful syncing right now?  move this into get_cmds
     noc_async_writes_flushed();
     cb_release_pages<downstream_noc_xy, downstream_cb_sem_id>(npages);
-
     return fence;
 }
 
@@ -1264,8 +1263,8 @@ void kernel_main_h() {
 
     uint32_t cmd_ptr = cmddat_q_base;
     uint32_t fence = cmddat_q_base;
-
     bool done = false;
+    uint32_t heartbeat = 0;
     while (!done) {
         fetch_q_get_cmds<sizeof(CQPrefetchHToPrefetchDHeader)>(fence, cmd_ptr, pcie_read_ptr);
 
@@ -1282,7 +1281,6 @@ void kernel_main_h() {
             done = true;
         }
 #if defined(COMPILE_FOR_IDLE_ERISC)
-        uint32_t heartbeat = 0;
         RISC_POST_HEARTBEAT(heartbeat);
 #endif
     }
@@ -1303,6 +1301,7 @@ void kernel_main_d() {
     uint32_t fence = cmddat_q_base;
 
     bool done = false;
+    uint32_t heartbeat = 0;
     while (!done) {
         // cmds come in packed batches based on HostQ reads in prefetch_h
         // once a packed batch ends, we need to jump to the next page
@@ -1336,7 +1335,6 @@ void kernel_main_d() {
         // Move to next page
         cmd_ptr = round_up_pow2(cmd_ptr, cmddat_q_page_size);
 #if defined(COMPILE_FOR_IDLE_ERISC)
-        uint32_t heartbeat = 0;
         RISC_POST_HEARTBEAT(heartbeat);
 #endif
     }
@@ -1350,7 +1348,7 @@ void kernel_main_d() {
 }
 
 void kernel_main_hd() {
-
+    uint32_t heartbeat = 0;
     uint32_t cmd_ptr = cmddat_q_base;
     uint32_t fence = cmddat_q_base;
     bool done = false;
@@ -1365,7 +1363,6 @@ void kernel_main_hd() {
         done = process_cmd<false, false>(cmd_ptr, downstream_data_ptr, stride);
         cmd_ptr += stride;
 #if defined(COMPILE_FOR_IDLE_ERISC)
-        uint32_t heartbeat = 0;
         RISC_POST_HEARTBEAT(heartbeat);
 #endif
     }

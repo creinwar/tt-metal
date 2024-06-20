@@ -264,7 +264,7 @@ void Cluster::open_driver(
             skip_driver_allocs,
             clean_system_resources,
             perform_harvesting);
-
+        device_driver->configure_active_ethernet_cores_for_mmio_device(mmio_device_id, {});
         device_driver->set_driver_host_address_params(host_address_params);
         device_driver->set_driver_eth_interface_params(eth_interface_params);
 
@@ -807,7 +807,7 @@ std::unordered_set<CoreCoord> Cluster::get_inactive_ethernet_cores(chip_id_t chi
     for (const auto &[eth_core, chan] : get_soc_desc(chip_id).logical_eth_core_to_chan_map) {
         // TODO: UMD routing FW uses these cores for base routing
         // channel 15 is used by syseng tools.
-        if (this->cluster_desc_->is_chip_mmio_capable(chip_id) and (chan <= 3 or chan == 15)) {
+        if (this->cluster_desc_->is_chip_mmio_capable(chip_id) and (chan == 15)) {
             continue;
             ;
         }

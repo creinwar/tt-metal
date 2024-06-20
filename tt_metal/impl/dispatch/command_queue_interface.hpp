@@ -77,6 +77,10 @@ struct dispatch_constants {
 
     uint32_t prefetch_d_buffer_pages() const { return prefetch_d_buffer_pages_; }
 
+    uint32_t mux_buffer_size(uint8_t num_hw_cqs = 1) const { return prefetch_d_buffer_size_ / num_hw_cqs; }
+
+    uint32_t mux_buffer_pages(uint8_t num_hw_cqs = 2) const { return prefetch_d_buffer_pages_ / num_hw_cqs; }
+
    private:
     dispatch_constants(const CoreType &core_type) {
         TT_ASSERT(core_type == CoreType::WORKER or core_type == CoreType::ETH);
@@ -495,7 +499,6 @@ class SystemMemoryManager {
         }
 
         uint32_t issue_q_write_ptr = this->get_issue_queue_write_ptr(cq_id);
-
         const uint32_t command_issue_limit = this->get_issue_queue_limit(cq_id);
         if (issue_q_write_ptr + align(cmd_size_B, PCIE_ALIGNMENT) > command_issue_limit) {
             this->wrap_issue_queue_wr_ptr(cq_id);

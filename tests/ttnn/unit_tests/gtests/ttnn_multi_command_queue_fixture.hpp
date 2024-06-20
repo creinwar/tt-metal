@@ -20,10 +20,10 @@ class MultiCommandQueueSingleDeviceFixture : public ::testing::Test {
             GTEST_SKIP() << "Skipping Multi CQ test suite, since it can only be run in Fast Dispatch Mode.";
         }
 
-        if (arch_ == tt::ARCH::WORMHOLE_B0 and num_devices_ != 1) {
-            device_ = tt::tt_metal::CreateDevice(0); // Create device here so teardown can gracefully run
-            GTEST_SKIP() << "Skipping for Multi-Chip Wormhole, since not enough dispatch cores.";
-        }
+        // if (arch_ == tt::ARCH::WORMHOLE_B0 and num_devices_ != 1) {
+        //     device_ = tt::tt_metal::CreateDevice(0); // Create device here so teardown can gracefully run
+        //     GTEST_SKIP() << "Skipping for Multi-Chip Wormhole, since not enough dispatch cores.";
+        // }
         device_ = tt::tt_metal::CreateDevice(0, 2);
     }
 

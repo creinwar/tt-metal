@@ -138,7 +138,6 @@ constexpr uint32_t input_packetize_dest_endpoint[MAX_SWITCH_FAN_IN] =
 
 
 void kernel_main() {
-
     noc_init();
 
     write_test_results(test_results, PQ_TEST_STATUS_INDEX, PACKET_QUEUE_TEST_STARTED);
@@ -159,12 +158,10 @@ void kernel_main() {
                       output_depacketize, output_depacketize_log_page_size,
                       output_depacketize_downstream_sem, output_depacketize_local_sem,
                       output_depacketize_remove_header);
-
     if (!wait_all_src_dest_ready(input_queues, mux_fan_in, &output_queue, 1, timeout_cycles)) {
         write_test_results(test_results, PQ_TEST_STATUS_INDEX, PACKET_QUEUE_TEST_TIMEOUT);
         return;
     }
-
     write_test_results(test_results, PQ_TEST_MISC_INDEX, 0xff000001);
 
     uint32_t curr_input = 0;
