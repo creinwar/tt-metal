@@ -18,8 +18,6 @@
     ((x_start) << (2 * NOC_ADDR_NODE_ID_BITS)) | ((y_start) << (3 * NOC_ADDR_NODE_ID_BITS)) | (x_end) | \
         ((y_end) << (NOC_ADDR_NODE_ID_BITS))
 
-#define NOC_XY_ADDR2(xy, addr) ((((uint64_t)(xy)) << NOC_ADDR_LOCAL_BITS) | ((uint64_t)(addr)))
-
 // Alignment restrictions
 #define NOC_L1_READ_ALIGNMENT_BYTES       16
 #define NOC_L1_WRITE_ALIGNMENT_BYTES      16
