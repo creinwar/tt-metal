@@ -287,6 +287,7 @@ TEST_F(DeviceFixture, TestL1ToPCIeAt16BAlignedAddress) {
     CoreCoord logical_core(0, 0);
 
     uint32_t base_l1_src_address = L1_UNRESERVED_BASE + L1_ALIGNMENT;
+    uint32_t base_pcie_dst_offset = tt::Cluster::instance().get_pcie_base_addr_from_device(device->id());
     uint32_t base_pcie_dst_address = CQ_START + L1_ALIGNMENT;
 
     uint32_t size_bytes = 2048 * 128;
@@ -303,7 +304,7 @@ TEST_F(DeviceFixture, TestL1ToPCIeAt16BAlignedAddress) {
         DataMovementConfig{
             .processor = DataMovementProcessor::RISCV_1,
             .noc = NOC::RISCV_0_default,
-            .compile_args = {base_l1_src_address, base_pcie_dst_address, num_16b_writes}
+            .compile_args = {base_l1_src_address, base_pcie_dst_address + base_pcie_dst_offset, num_16b_writes}
         }
     );
 
