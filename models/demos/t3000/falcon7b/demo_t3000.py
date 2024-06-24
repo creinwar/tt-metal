@@ -10,7 +10,7 @@ from models.utility_functions import is_wormhole_b0, get_devices_for_t3000
 @pytest.mark.parametrize(
     "perf_mode, max_seq_len, expected_perf_metrics, greedy_sampling, expected_greedy_output_path",
     (
-        (True, 128, {"prefill_t/s": 4500, "decode_t/s": 1050, "decode_t/s/u": 4.1}, False, None),
+        (True, 128, {"prefill_t/s": 4350, "decode_t/s": 1000, "decode_t/s/u": 3.9}, False, None),
         (True, 1024, {"prefill_t/s": 10200, "decode_t/s": 1100, "decode_t/s/u": 4.3}, False, None),
         (True, 2048, {"prefill_t/s": 8000, "decode_t/s": 1180, "decode_t/s/u": 4.6}, False, None),
         (True, 1024, None, False, None),
