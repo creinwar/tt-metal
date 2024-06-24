@@ -1306,7 +1306,10 @@ class resnet50:
             reshard = True
             height_shard = False
         else:
-            x = ttnn.to_memory_config(x, ops_parallel_config["layer4_module1_input"])
+            if is_wormhole_b0() and batch_size == 16:
+                reshard = True
+            else:
+                x = ttnn.to_memory_config(x, ops_parallel_config["layer4_module1_input"])
 
         logger.debug(f"==== Running layer 4 module 1")
         x, x_height, x_width = self.layer4_module1(
