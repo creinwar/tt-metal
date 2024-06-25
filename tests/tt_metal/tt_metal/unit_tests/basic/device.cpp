@@ -88,9 +88,13 @@ TEST_F(BasicFixture, SingleDeviceHarvestingPrints) {
     tt::tt_metal::Device* device;
     const unsigned int device_id = 0;
     device = tt::tt_metal::CreateDevice(device_id);
-    CoreCoord unharvested_logical_grid_size(12, 10);
-    if (arch == tt::ARCH::WORMHOLE_B0) {
-        unharvested_logical_grid_size = CoreCoord(8, 10);
+    CoreCoord unharvested_logical_grid_size;
+    switch (arch) {
+        case tt::ARCH::GRAYSKULL: unharvested_logical_grid_size = CoreCoord(12, 10);  break;
+        case tt::ARCH::WORMHOLE_B0: unharvested_logical_grid_size = CoreCoord(8, 10); break;
+        case tt::ARCH::BLACKHOLE: unharvested_logical_grid_size = CoreCoord(14, 10); break;
+        default:
+            TT_THROW("Unsupported arch {}", get_env_arch_name());
     }
     auto logical_grid_size = device->logical_grid_size();
     if (logical_grid_size == unharvested_logical_grid_size) {
@@ -288,6 +292,7 @@ TEST_F(DeviceFixture, TestL1ToPCIeAt16BAlignedAddress) {
 
     uint32_t base_l1_src_address = L1_UNRESERVED_BASE + L1_ALIGNMENT;
     uint32_t base_pcie_dst_offset = tt::Cluster::instance().get_pcie_base_addr_from_device(device->id());
+    std::cout << "base_pcie_dst_offset " << std::hex << base_pcie_dst_offset << std::dec << " " << base_pcie_dst_offset << std::endl;
     uint32_t base_pcie_dst_address = CQ_START + L1_ALIGNMENT;
 
     uint32_t size_bytes = 2048 * 128;
@@ -304,7 +309,7 @@ TEST_F(DeviceFixture, TestL1ToPCIeAt16BAlignedAddress) {
         DataMovementConfig{
             .processor = DataMovementProcessor::RISCV_1,
             .noc = NOC::RISCV_0_default,
-            .compile_args = {base_l1_src_address, base_pcie_dst_address + base_pcie_dst_offset, num_16b_writes}
+            .compile_args = {base_l1_src_address, base_pcie_dst_address /*+ base_pcie_dst_offset*/, num_16b_writes, base_pcie_dst_offset}
         }
     );
 
