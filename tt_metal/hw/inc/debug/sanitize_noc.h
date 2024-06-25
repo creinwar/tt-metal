@@ -189,10 +189,19 @@ void debug_sanitize_noc_and_worker_addr(
     }
 }
 
+#ifdef ARCH_BLACKHOLE
+    #define NOC_TARG_ADDR_LOCATION  (NOC_TARG_ADDR_HI)
+    #define NOC_RET_ADDR_LOCATION   (NOC_RET_ADDR_HI)
+#else
+    #define NOC_TARG_ADDR_LOCATION  (NOC_TARG_ADDR_MID)
+    #define NOC_RET_ADDR_LOCATION   (NOC_RET_ADDR_MID)
+#endif
+
+
 // TODO: Clean these up with #7453
 #define DEBUG_SANITIZE_NOC_READ_TRANSACTION_FROM_STATE(noc_id)                                   \
     DEBUG_SANITIZE_NOC_READ_TRANSACTION(                                                         \
-        ((uint64_t)NOC_CMD_BUF_READ_REG(noc_id, NCRISC_RD_CMD_BUF, NOC_TARG_ADDR_MID) << 32) |   \
+        ((uint64_t)NOC_CMD_BUF_READ_REG(noc_id, NCRISC_RD_CMD_BUF, NOC_TARG_ADDR_LOCATION) << 32) |   \
             ((uint64_t)NOC_CMD_BUF_READ_REG(noc_id, NCRISC_RD_CMD_BUF, NOC_TARG_ADDR_LO)), \
         NOC_CMD_BUF_READ_REG(noc_id, NCRISC_RD_CMD_BUF, NOC_RET_ADDR_LO),                        \
         NOC_CMD_BUF_READ_REG(noc_index, NCRISC_RD_CMD_BUF, NOC_AT_LEN_BE));                      \
@@ -200,7 +209,7 @@ void debug_sanitize_noc_and_worker_addr(
 
 #define DEBUG_SANITIZE_NOC_WRITE_TRANSACTION_FROM_STATE(noc_id)                               \
     DEBUG_SANITIZE_NOC_WRITE_TRANSACTION(                                                     \
-        ((uint64_t)NOC_CMD_BUF_READ_REG(noc_id, NCRISC_WR_CMD_BUF, NOC_RET_ADDR_MID) << 32) | \
+        ((uint64_t)NOC_CMD_BUF_READ_REG(noc_id, NCRISC_WR_CMD_BUF, NOC_RET_ADDR_LOCATION) << 32) | \
             ((uint64_t)NOC_CMD_BUF_READ_REG(noc_id, NCRISC_WR_CMD_BUF, NOC_RET_ADDR_LO)),     \
         NOC_CMD_BUF_READ_REG(noc_id, NCRISC_WR_CMD_BUF, NOC_TARG_ADDR_LO),                    \
         NOC_CMD_BUF_READ_REG(noc_id, NCRISC_WR_CMD_BUF, NOC_AT_LEN_BE));                      \
@@ -230,17 +239,17 @@ void debug_sanitize_noc_and_worker_addr(
 
 #define DEBUG_SANITIZE_NOC_READ_TRANSACTION_WITH_ADDR_AND_SIZE_STATE(noc_id, noc_a_lower, worker_a)         \
     DEBUG_SANITIZE_NOC_READ_TRANSACTION(                                                                    \
-        ((uint64_t)NOC_CMD_BUF_READ_REG(noc_id, NCRISC_RD_CMD_BUF, NOC_TARG_ADDR_MID) << 32) | noc_a_lower, \
+        ((uint64_t)NOC_CMD_BUF_READ_REG(noc_id, NCRISC_RD_CMD_BUF, NOC_TARG_ADDR_LOCATION) << 32) | noc_a_lower, \
         worker_a,                                                                                           \
         NOC_CMD_BUF_READ_REG(noc_index, NCRISC_RD_CMD_BUF, NOC_AT_LEN_BE));
 #define DEBUG_SANITIZE_NOC_READ_TRANSACTION_WITH_ADDR_STATE(noc_id, noc_a_lower, worker_a, l)               \
     DEBUG_SANITIZE_NOC_READ_TRANSACTION(                                                                    \
-        ((uint64_t)NOC_CMD_BUF_READ_REG(noc_id, NCRISC_RD_CMD_BUF, NOC_TARG_ADDR_MID) << 32) | noc_a_lower, \
+        ((uint64_t)NOC_CMD_BUF_READ_REG(noc_id, NCRISC_RD_CMD_BUF, NOC_TARG_ADDR_LOCATION) << 32) | noc_a_lower, \
         worker_a,                                                                                           \
         l);
 #define DEBUG_SANITIZE_NOC_WRITE_TRANSACTION_WITH_ADDR_AND_SIZE_STATE(noc_id, noc_a_lower, worker_a)           \
     DEBUG_SANITIZE_NOC_WRITE_TRANSACTION(                                                                      \
-        ((uint64_t)NOC_CMD_BUF_READ_REG(noc_index, NCRISC_WR_CMD_BUF, NOC_TARG_ADDR_MID) << 32) | noc_a_lower, \
+        ((uint64_t)NOC_CMD_BUF_READ_REG(noc_index, NCRISC_WR_CMD_BUF, NOC_TARG_ADDR_LOCATION) << 32) | noc_a_lower, \
         worker_a,                                                                                              \
         NOC_CMD_BUF_READ_REG(noc_index, NCRISC_WR_CMD_BUF, NOC_AT_LEN_BE));
 #define DEBUG_INSERT_DELAY(transaction_type) debug_insert_delay(transaction_type)

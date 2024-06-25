@@ -17,7 +17,11 @@ void noc_fast_read_wait_ready() {
 
 FORCE_INLINE
 void noc_fast_read_set_src_xy(uint64_t src_addr) {
+#ifdef ARCH_BLACKHOLE
+    NOC_CMD_BUF_WRITE_REG(noc_index, NCRISC_RD_CMD_BUF, NOC_TARG_ADDR_HI, (uint32_t)(src_addr >> 36));
+#else
     NOC_CMD_BUF_WRITE_REG(noc_index, NCRISC_RD_CMD_BUF, NOC_TARG_ADDR_MID, src_addr >> 32);
+#endif
 }
 
 FORCE_INLINE
@@ -29,7 +33,11 @@ FORCE_INLINE
 void noc_fast_read(uint32_t src_addr, uint32_t dest_addr) {
     DEBUG_STATUS("NFRW");
     DEBUG_SANITIZE_NOC_READ_TRANSACTION(
+#ifdef ARCH_BLACKHOLE
+        (uint64_t)(src_addr) | (uint64_t)NOC_CMD_BUF_READ_REG(noc_index, NCRISC_RD_CMD_BUF, NOC_TARG_ADDR_HI) << 32,
+#else
         (uint64_t)(src_addr) | (uint64_t)NOC_CMD_BUF_READ_REG(noc_index, NCRISC_RD_CMD_BUF, NOC_TARG_ADDR_MID) << 32,
+#endif
         dest_addr,
         NOC_CMD_BUF_READ_REG(noc_index, NCRISC_RD_CMD_BUF, NOC_AT_LEN_BE)
     );
@@ -63,7 +71,11 @@ void noc_fast_write_set_cmd_field(uint32_t vc, bool mcast, bool linked) {
 
 FORCE_INLINE
 void noc_fast_write_set_dst_xy(uint64_t dest_addr) {
+#ifdef ARCH_BLACKHOLE
+    NOC_CMD_BUF_WRITE_REG(noc_index, NCRISC_WR_CMD_BUF, NOC_RET_ADDR_HI, (uint32_t)(dest_addr >> 36));
+#else
     NOC_CMD_BUF_WRITE_REG(noc_index, NCRISC_WR_CMD_BUF, NOC_RET_ADDR_MID, dest_addr >> 32);
+#endif
 }
 
 FORCE_INLINE
@@ -75,7 +87,11 @@ void noc_fast_write_set_len(uint32_t len_bytes) {
 FORCE_INLINE
 void noc_fast_write(uint32_t src_addr, uint64_t dest_addr) {
     DEBUG_SANITIZE_NOC_WRITE_TRANSACTION(
+#ifdef ARCH_BLACKHOLE
+        dest_addr | (uint64_t)NOC_CMD_BUF_READ_REG(noc_index, NCRISC_WR_CMD_BUF, NOC_RET_ADDR_HI) << 32,
+#else
         dest_addr | (uint64_t)NOC_CMD_BUF_READ_REG(noc_index, NCRISC_WR_CMD_BUF, NOC_RET_ADDR_MID) << 32,
+#endif
         dest_addr,
         NOC_CMD_BUF_READ_REG(noc_index, NCRISC_WR_CMD_BUF, NOC_AT_LEN_BE)
     );
