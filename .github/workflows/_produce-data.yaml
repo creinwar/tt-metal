@@ -79,3 +79,8 @@ jobs:
               workflow.json
               workflow_jobs.json
               github_context.json
+  test-get-job-id:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/upload-artifact-with-job-id
