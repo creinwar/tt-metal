@@ -87,4 +87,5 @@ jobs:
         with:
           path: |
             infra/VERSION
+            infra/*.txt
           prefix: "test_artifact_"
