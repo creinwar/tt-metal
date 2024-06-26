@@ -4,7 +4,7 @@ test-list:
       shape:
         start-shape: [1, 32, 512, 2048]
         end-shape: [1, 512, 2048, 4096]
-        interval: [1, 32, 32, 32]
+        interval: [1, 1, 1, 1]
         num-shapes: 2
         num-samples: 128
         method: ttnn-embeddings

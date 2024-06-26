@@ -8,7 +8,7 @@ test-list:
         end-shape:
           - [1, 1, 512, 512]
           - [1, 1, 512, 512]
-        interval: [1, 1, 32, 32, 32]
+        interval: [1, 1, 1, 1, 1]
         num-shapes: 2
         num-samples: 48
         args-sampling-strategy: "all"
@@ -38,7 +38,7 @@ test-list:
         end-shape:
           - [1, 1, 512, 512]
           - [1, 1, 512, 512]
-        interval: [1, 1, 32, 32, 32]
+        interval: [1, 1, 1, 1, 1]
         num-shapes: 2
         num-samples: 48
         args-sampling-strategy: "all"
@@ -68,7 +68,7 @@ test-list:
         end-shape:
           - [1, 1, 512, 512]
           - [1, 1, 512, 512]
-        interval: [1, 1, 1, 2, 2]
+        interval: [1, 1, 1, 1, 1]
         num-shapes: 2
         num-samples: 48
         args-sampling-strategy: "all"
