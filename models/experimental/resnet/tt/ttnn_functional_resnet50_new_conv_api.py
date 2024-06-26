@@ -654,7 +654,7 @@ class resnet50:
             # TODO: fix the need to do the reshard here
             mem_config = ttnn.create_sharded_memory_config_(
                 ttnn.Shape([self.batch_size * x_height * x_width, 64]),
-                ttnn.CoreGrid(x=7, y=8),
+                ttnn.CoreGrid(x=8, y=7),
                 ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
                 ttnn.ShardOrientation.ROW_MAJOR,
                 tile_layout=True,
