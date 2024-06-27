@@ -3,10 +3,10 @@ test-list:
   - eltwise-lerp_ternary:
       shape:
         start-shape: [1, 1, 32, 32]
-        end-shape: [6, 12, 256, 256]
-        interval: [1, 1, 32, 32]
+        end-shape: [20, 60, 512, 256]
+        interval: [1, 1, 1, 1]
         num-shapes: 3
-        num-samples: 64
+        num-samples: 1000
       env:
         # TT_PCI_DMA_BUF_SIZE: "1048576"
       datagen:
@@ -26,10 +26,10 @@ test-list:
   - eltwise-lerp_ternary:
       shape:
         start-shape: [1, 1, 2, 2]
-        end-shape: [6, 12, 256, 256]
-        interval: [1, 1, 2, 2]
+        end-shape: [40, 80, 256, 512]
+        interval: [1, 1, 1, 1]
         num-shapes: 3
-        num-samples: 64
+        num-samples: 1000
       env:
         # TT_PCI_DMA_BUF_SIZE: "1048576"
       datagen:
