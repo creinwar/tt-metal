@@ -318,11 +318,11 @@ void Device::reset_cores() {
             this->id(), physical_core, GET_ETH_MAILBOX_ADDRESS_HOST(launch), sizeof(launch_msg_t));
         launch_msg_t *launch_msg = (launch_msg_t *)(&data[0]);
         if (launch_msg->run == RUN_MSG_GO) {
-            log_debug(
+            log_info(
                 tt::LogMetal,
-                "Issuing early exit to ethernet tunneler core {} on Device {} when initializing Device {}",
-                physical_core.str(),
+                "While initializing Device {}, ethernet tunneler core {} on Device {} detected as still running, issuing exit signal.",
                 this->id(),
+                physical_core.str(),
                 this->id());
             launch_msg->exit_erisc_kernel = 1;
             llrt::write_launch_msg_to_core(this->id(), physical_core, launch_msg);
@@ -335,6 +335,7 @@ void Device::reset_cores() {
     for (auto &id_and_cores : dispatch_cores) {
         for (auto it = id_and_cores.second.begin(); it != id_and_cores.second.end(); it++) {
             const auto &phys_core = *it;
+            // Only need to manually reset ethernet dispatch cores, tensix cores are all reset below.
             if (llrt::is_ethernet_core(phys_core, id_and_cores.first)) {
                 // Ethernet cores won't be reset, so just signal the dispatch cores to early exit.
                 std::vector<uint32_t> data(sizeof(launch_msg_t) / sizeof(uint32_t));
@@ -342,26 +343,29 @@ void Device::reset_cores() {
                     id_and_cores.first, phys_core, GET_IERISC_MAILBOX_ADDRESS_HOST(launch), sizeof(launch_msg_t));
                 launch_msg_t *launch_msg = (launch_msg_t *)(&data[0]);
                 if (launch_msg->run == RUN_MSG_GO) {
-                    log_debug(
+                    log_info(
                         tt::LogMetal,
-                        "Issuing early exit to ethernet dispatch core {} on Device {} when intializing Device {}",
+                        "While initializing device {}, ethernet dispatch core {} on Device {} detected as still running, issuing exit signal.",
+                        this->id(),
                         phys_core.str(),
-                        id_and_cores.first,
-                        this->id());
+                        id_and_cores.first);
                     launch_msg->exit_erisc_kernel = 1;
                     llrt::write_launch_msg_to_core(id_and_cores.first, phys_core, launch_msg);
                     device_to_early_exit_cores[id_and_cores.first].insert(phys_core);
                 }
-            } else {
-                // For dispatch cores on Tensix, no need to do anything as we reset all Tensix cores below.
             }
         }
     }
 
     // Early exiting dispatch cores should show RUN_MSG_DONE when they exit.
     for (auto &id_and_cores : device_to_early_exit_cores) {
+        const int timeout_ms = 10000; // 10 seconds for now
         if (!id_and_cores.second.empty()) {
-            llrt::internal_::wait_until_cores_done(id_and_cores.first, RUN_MSG_GO, id_and_cores.second);
+            try {
+                llrt::internal_::wait_until_cores_done(id_and_cores.first, RUN_MSG_GO, id_and_cores.second, timeout_ms);
+            } catch (std::runtime_error &e) {
+                TT_THROW("Device {} init: failed to reset cores! Try resetting the board.", this->id());
+            }
         }
     }
 
