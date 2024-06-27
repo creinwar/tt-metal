@@ -1829,7 +1829,7 @@ bool Device::close() {
         if (hw_command_queue->manager.get_bypass_mode()) {
             hw_command_queue->record_end();
         }
-        //hw_command_queue->terminate();
+        hw_command_queue->terminate();
     }
     this->work_executor.reset();
     tt_metal::detail::DumpDeviceProfileResults(this, true);
