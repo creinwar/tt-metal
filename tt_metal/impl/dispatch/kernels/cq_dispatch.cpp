@@ -804,16 +804,10 @@ static void process_wait() {
     DEBUG_STATUS("PWW");
     volatile tt_l1_ptr uint32_t *sem_addr = reinterpret_cast<volatile tt_l1_ptr uint32_t *>(addr);
     DPRINT << " DISPATCH WAIT " << HEX() << addr << DEC() << " count " << count << ENDL();
-#if defined(COMPILE_FOR_IDLE_ERISC)
     uint32_t heartbeat = 0;
-#endif
     if (wait) {
         while (!wrap_ge(*sem_addr, count)) {
-#if defined(COMPILE_FOR_IDLE_ERISC)
-            if (early_exit())
-                return;
-            RISC_POST_HEARTBEAT(heartbeat);
-#endif
+            IDLE_ERISC_HEARTBEAT_AND_RETURN(heartbeat);
         }
     }
     DEBUG_STATUS("PWD");
@@ -1012,9 +1006,7 @@ void kernel_main() {
         cq_write_interface.completion_fifo_wr_toggle = completion_queue_wr_ptr_and_toggle >> 31;
     }
     bool done = false;
-#if defined(COMPILE_FOR_IDLE_ERISC)
     uint32_t heartbeat = 0;
-#endif
     while (!done) {
         DeviceZoneScopedND("CQ-DISPATCH", block_noc_writes_to_clear, rd_block_idx );
         if (cmd_ptr == cb_fence) {
@@ -1027,11 +1019,7 @@ void kernel_main() {
                 cmd_ptr, cb_fence, block_noc_writes_to_clear, block_next_start_addr, rd_block_idx);
         }
 
-#if defined(COMPILE_FOR_IDLE_ERISC)
-        if (early_exit())
-            return;
-        RISC_POST_HEARTBEAT(heartbeat);
-#endif
+        IDLE_ERISC_HEARTBEAT_AND_RETURN(heartbeat);
 
         done = is_d_variant ? process_cmd_d(cmd_ptr) : process_cmd_h(cmd_ptr);
 

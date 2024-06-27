@@ -223,15 +223,9 @@ void kernel_main() {
     uint64_t iter = 0;
     uint64_t start_timestamp = get_timestamp();
     uint32_t progress_timestamp = start_timestamp & 0xFFFFFFFF;
-#if defined(COMPILE_FOR_IDLE_ERISC)
     uint32_t heartbeat = 0;
-#endif
     while (!all_outputs_finished && !timeout) {
-#if defined(COMPILE_FOR_IDLE_ERISC)
-        if (early_exit())
-            return;
-        RISC_POST_HEARTBEAT(heartbeat);
-#endif
+        IDLE_ERISC_HEARTBEAT_AND_RETURN(heartbeat);
         iter++;
         if (timeout_cycles > 0) {
             uint32_t cycles_since_progress = get_timestamp_32b() - progress_timestamp;

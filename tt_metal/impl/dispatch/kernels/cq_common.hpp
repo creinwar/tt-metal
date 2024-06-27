@@ -111,15 +111,9 @@ FORCE_INLINE
 void cq_noc_async_write_init_state(uint32_t src_addr, uint64_t dst_addr, uint32_t size = 0) {
 
     DEBUG_STATUS("NSIW");
-#if defined(COMPILE_FOR_IDLE_ERISC)
     uint32_t heartbeat = 0;
-#endif
     while (!noc_cmd_buf_ready(noc_index, NCRISC_WR_CMD_BUF)) {
-#if defined(COMPILE_FOR_IDLE_ERISC)
-        if (early_exit())
-            return;
-        RISC_POST_HEARTBEAT(heartbeat);
-#endif
+        IDLE_ERISC_HEARTBEAT_AND_RETURN(heartbeat);
     }
     DEBUG_STATUS("NSID");
 
@@ -165,15 +159,9 @@ void cb_acquire_pages(uint32_t n) {
     DEBUG_STATUS("DAPW");
     // Use a wrapping compare here to compare distance
     // Required for trace which steals downstream credits and may make the value negative
-#if defined(COMPILE_FOR_IDLE_ERISC)
     uint32_t heartbeat = 0;
-#endif
     while (wrap_gt(n, *sem_addr)) {
-#if defined(COMPILE_FOR_IDLE_ERISC)
-        if (early_exit())
-            return;
-        RISC_POST_HEARTBEAT(heartbeat);
-#endif
+        IDLE_ERISC_HEARTBEAT_AND_RETURN(heartbeat);
     }
     DEBUG_STATUS("DAPD");
     noc_semaphore_inc(get_noc_addr_helper(noc_xy, (uint32_t)sem_addr), -n);
@@ -202,16 +190,9 @@ uint32_t cb_acquire_pages(uint32_t cb_fence,
         // Ensure last sem_inc has landed
         noc_async_atomic_barrier();
 
-#if defined(COMPILE_FOR_IDLE_ERISC)
         uint32_t heartbeat = 0;
-#endif
         while ((available = *sem_addr) == 0) {
-#if defined(COMPILE_FOR_IDLE_ERISC)
-            if (early_exit()) {
-                return 0;
-            }
-            RISC_POST_HEARTBEAT(heartbeat);
-#endif
+            IDLE_ERISC_HEARTBEAT_AND_RETURN(heartbeat, 0);
         }
         DEBUG_STATUS("UAPD");
     }
