@@ -319,11 +319,21 @@ def set_prefill_config(model_config, seq_len, dram_memcfg):
             fp32_dest_acc_en=False,
             packer_l1_acc=True,
         )
+
+        lofi_kernel_config = ttnn.experimental.tensor.WormholeComputeKernelConfig(
+            math_fidelity=ttnn.experimental.tensor.MathFidelity.LoFi,
+            math_approx_mode=True,
+            fp32_dest_acc_en=False,
+            packer_l1_acc=True,
+        )
     else:
         default_kernel_config = ttnn.experimental.tensor.GrayskullComputeKernelConfig(
             math_fidelity=ttnn.experimental.tensor.MathFidelity.LoFi,
             math_approx_mode=True,
         )
+
+        lofi_kernel_config = default_kernel_config
+
     model_config["MLP_KERNEL_CONFIG"] = default_kernel_config
 
     mm_h_to_4h_prog_cfg = ttnn.MatmulMultiCoreReuseMultiCastProgramConfig(
@@ -356,20 +366,14 @@ def set_prefill_config(model_config, seq_len, dram_memcfg):
         compute_with_storage_grid_size=(8, 8),
         in0_block_w=2,
         per_core_M=8,
-        per_core_N=21,
+        per_core_N=20,
         out_subblock_h=1,
-        out_subblock_w=1,  # 7,
+        out_subblock_w=1,  # 5,
         transpose_mcast=False,
         fused_activation=None,
     )
-    compute_kernel_config = ttnn.experimental.tensor.WormholeComputeKernelConfig(
-        math_fidelity=ttnn.experimental.tensor.MathFidelity.HiFi2,
-        math_approx_mode=True,
-        fp32_dest_acc_en=False,
-        packer_l1_acc=True,
-    )
-    model_config["FUSED_QKV_MM_OPTIMIZED_KERNEL_CONFIG"] = compute_kernel_config
-    model_config["SELFOUT_MM_OPTIMIZED_KERNEL_CONFIG"] = compute_kernel_config
+
+    model_config["FUSED_QKV_MM_OPTIMIZED_KERNEL_CONFIG"] = lofi_kernel_config
     model_config["ATTN_OPTIMIZED_GRID_SIZE"] = (8, 8)
     model_config["ATTN_OPTIMIZED_MEMCFG"] = dram_memcfg
     model_config[
@@ -423,6 +427,21 @@ def set_prefill_config(model_config, seq_len, dram_memcfg):
         fused_activation=None,
         mcast_in0=False,
     )
+
+    model_config[
+        "SELFOUT_MM_OPTIMIZED_PROGCFG"
+    ] = ttnn.experimental.operations.primary.MatmulMultiCoreReuseMultiCastProgramConfig(
+        compute_with_storage_grid_size=model_config["ATTN_OPTIMIZED_GRID_SIZE"],
+        in0_block_w=2,
+        per_core_M=seq_len // 32 // 8,
+        per_core_N=18,
+        out_subblock_h=1,
+        out_subblock_w=1,  # 6,
+        transpose_mcast=False,
+        fused_activation=None,
+    )
+
+    model_config["SELFOUT_MM_OPTIMIZED_KERNEL_CONFIG"] = lofi_kernel_config
 
     model_config["LM_HEAD_KERNEL_CONFIG"] = default_kernel_config
     (

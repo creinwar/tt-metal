@@ -556,8 +556,7 @@ class TtFalconAttentionPrefill(nn.Module):
                 memory_config=self.model_config["SELFOUT_MM_OUTPUT_MEMCFG"],
                 dtype=self.model_config["SELFOUT_MM_OUTPUT_DTYPE"],
                 compute_kernel_config=self.model_config["SELFOUT_MM_OPTIMIZED_KERNEL_CONFIG"],
-                core_grid=ttnn.CoreGrid(y=7, x=8),
-                use_1d_systolic_array=True,
+                program_config=self.model_config["SELFOUT_MM_OPTIMIZED_PROGCFG"],
             )
             for device_id in range(self.num_devices)
         ]
