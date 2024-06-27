@@ -79,6 +79,9 @@ def run_conv(
     stride_w,
     pad_h,
     pad_w,
+    dilation_h,
+    dilation_w,
+    activation,
     use_1d_systolic_array,
     config_override,
     use_shallow_conv_variant=False,
@@ -148,6 +151,8 @@ def run_conv(
         weight=tt_weight_tensor,
         bias=tt_bias_tensor,
         math_fidelity=math_fidelity,
+        dilation=(dilation_h, dilation_w),
+        activation=activation,
         weights_dtype=weights_dtype,
         conv_blocking_and_parallelization_config_override=config_override,
         use_shallow_conv_variant=use_shallow_conv_variant,
@@ -1264,6 +1269,89 @@ def test_conv_core_nondivis(
         stride_w,
         pad_h,
         pad_w,
+        use_1d_systolic_array,
+        config_override,
+    )
+
+
+@pytest.mark.parametrize("device_params", [{"l1_small_size": 16384}], indirect=True)
+@pytest.mark.parametrize(
+    "batch_size, output_channels, input_channels, input_height, input_width, filter_height, filter_width, stride_h, stride_w, pad_h, pad_w,dilation_h,dilation_w,activation, config_override, xfail",
+    (
+        (1, 32, 3, 256, 256, 5, 5, 1, 1, 0, 0, 1, 1, "relu", None, False),
+        (1, 48, 32, 252, 252, 3, 3, 1, 1, 0, 0, 2, 2, "relu", None, False),  # dilation>1 not supported
+        (1, 56, 48, 248, 248, 3, 3, 1, 1, 0, 0, 4, 4, "relu", None, False),  # dilation>1 not supported
+        (1, 64, 56, 240, 240, 3, 3, 1, 1, 0, 0, 8, 8, "relu", None, False),  # dilation>1 not supported
+        # (1, 128, 64, 224, 224, 2, 2, 1, 1, 0, 0,1,1,"relu", None, False), # unusual issue(assertion)
+        (1, 256, 128, 223, 223, 1, 1, 1, 1, 0, 0, 1, 1, "relu", None, False),
+        (
+            1,
+            1,
+            256,
+            223,
+            223,
+            1,
+            1,
+            1,
+            1,
+            0,
+            0,
+            1,
+            1,
+            None,
+            None,
+            False,
+        ),  # sigmoid not available for conv act, so using none
+    ),
+)
+@pytest.mark.parametrize("use_1d_systolic_array", [False, True])
+def test_klassify_conv(
+    device,
+    use_program_cache,
+    use_1d_systolic_array,
+    batch_size,
+    output_channels,
+    input_channels,
+    input_height,
+    input_width,
+    filter_height,
+    filter_width,
+    stride_h,
+    stride_w,
+    pad_h,
+    pad_w,
+    dilation_h,
+    dilation_w,
+    activation,
+    config_override,
+    xfail,
+):
+    if xfail:
+        pytest.xfail()
+
+    math_fidelity = ttnn.MathFidelity.LoFi
+    activations_dtype = ttnn.bfloat8_b
+    weights_dtype = ttnn.bfloat8_b
+
+    run_conv(
+        device,
+        math_fidelity,
+        activations_dtype,
+        weights_dtype,
+        batch_size,
+        output_channels,
+        input_channels,
+        input_height,
+        input_width,
+        filter_height,
+        filter_width,
+        stride_h,
+        stride_w,
+        pad_h,
+        pad_w,
+        dilation_h,
+        dilation_w,
+        activation,
         use_1d_systolic_array,
         config_override,
     )
