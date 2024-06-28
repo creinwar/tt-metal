@@ -308,6 +308,10 @@ void Device::initialize_firmware(CoreCoord phys_core, launch_msg_t *launch_msg) 
 void Device::reset_cores() {
     ZoneScoped;
 
+    auto kernel_still_running = [](launch_msg_t *launch_msg) {
+        return launch_msg->run == RUN_MSG_GO && launch_msg->exit_erisc_kernel == 0;
+    };
+
     auto mmio_device_id = tt::Cluster::instance().get_associated_mmio_device(this->id_);
     // Assert worker cores + dispatch cores, in case they were in a bad state from before.
     std::unordered_map<chip_id_t, std::unordered_set<CoreCoord>> dispatch_cores, other_dispatch_cores, device_to_early_exit_cores;
@@ -317,7 +321,7 @@ void Device::reset_cores() {
         data = tt::llrt::read_hex_vec_from_core(
             this->id(), physical_core, GET_ETH_MAILBOX_ADDRESS_HOST(launch), sizeof(launch_msg_t));
         launch_msg_t *launch_msg = (launch_msg_t *)(&data[0]);
-        if (launch_msg->run == RUN_MSG_GO) {
+        if (kernel_still_running(launch_msg)) {
             log_info(
                 tt::LogMetal,
                 "While initializing Device {}, ethernet tunneler core {} on Device {} detected as still running, issuing exit signal.",
@@ -342,7 +346,7 @@ void Device::reset_cores() {
                 data = tt::llrt::read_hex_vec_from_core(
                     id_and_cores.first, phys_core, GET_IERISC_MAILBOX_ADDRESS_HOST(launch), sizeof(launch_msg_t));
                 launch_msg_t *launch_msg = (launch_msg_t *)(&data[0]);
-                if (launch_msg->run == RUN_MSG_GO) {
+                if (kernel_still_running(launch_msg)) {
                     log_info(
                         tt::LogMetal,
                         "While initializing device {}, ethernet dispatch core {} on Device {} detected as still running, issuing exit signal.",
