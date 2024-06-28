@@ -43,7 +43,7 @@ constexpr uint32_t DEFAULT_PACKETIZED_PATH_TIMEOUT_EN = 0;
 constexpr uint32_t DRAM_DATA_SIZE_BYTES = 16 * 1024 * 1024;
 constexpr uint32_t DRAM_DATA_SIZE_WORDS = DRAM_DATA_SIZE_BYTES / sizeof(uint32_t);
 constexpr uint32_t DRAM_DATA_BASE_ADDR = 1024 * 1024;
-constexpr uint32_t DRAM_DATA_ALIGNMENT = 32;
+constexpr uint32_t DRAM_DATA_ALIGNMENT = DRAM_ALIGNMENT;
 
 constexpr uint32_t PCIE_TRANSFER_SIZE_DEFAULT = 4096;
 
@@ -202,7 +202,6 @@ void dirty_host_completion_buffer(uint32_t *host_hugepage_completion_buffer) {
 
 uint32_t round_cmd_size_up(uint32_t size) {
     constexpr uint32_t align_mask = PCIE_ALIGNMENT - 1;
-
     return (size + align_mask) & ~align_mask;
 }
 
@@ -1097,10 +1096,10 @@ void gen_smoke_test(Device *device,
     gen_dram_packed_read_cmd(device, prefetch_cmds, cmd_sizes, device_data, another_worker_core, packed_read_page_size, lengths);
 
     lengths.resize(0);
-    lengths.push_back(2080);
+    lengths.push_back(2112);
     gen_dram_packed_read_cmd(device, prefetch_cmds, cmd_sizes, device_data, another_worker_core, packed_read_page_size, lengths);
 
-    lengths.push_back(2080);
+    lengths.push_back(2112);
     gen_dram_packed_read_cmd(device, prefetch_cmds, cmd_sizes, device_data, another_worker_core, packed_read_page_size + 1, lengths);
 
     lengths.resize(0);
@@ -1121,38 +1120,38 @@ void gen_smoke_test(Device *device,
     // Read from dram, write to worker
     // start_page, base addr, page_size, pages
     gen_dram_read_cmd(device, prefetch_cmds, cmd_sizes, device_data, worker_core,
-                      0, 0, 32, num_dram_banks_g, 0);
+                      0, 0, DRAM_ALIGNMENT, num_dram_banks_g, 0);
     gen_dram_read_cmd(device, prefetch_cmds, cmd_sizes, device_data, worker_core,
-                      0, 0, 32, num_dram_banks_g, 0);
+                      0, 0, DRAM_ALIGNMENT, num_dram_banks_g, 0);
     gen_dram_read_cmd(device, prefetch_cmds, cmd_sizes, device_data, worker_core,
-                      4, 32, 64, num_dram_banks_g, 0);
+                      4, DRAM_ALIGNMENT, DRAM_ALIGNMENT * 2, num_dram_banks_g, 0);
 
     gen_dram_read_cmd(device, prefetch_cmds, cmd_sizes, device_data, worker_core,
                       0, 0, 128, 128, 0);
     gen_dram_read_cmd(device, prefetch_cmds, cmd_sizes, device_data, worker_core,
-                      4, 32, 2048, num_dram_banks_g + 4, 0);
+                      4, DRAM_ALIGNMENT, 2048, num_dram_banks_g + 4, 0);
     gen_dram_read_cmd(device, prefetch_cmds, cmd_sizes, device_data, worker_core,
-                      5, 32, 2048, num_dram_banks_g * 3 + 1, 0);
+                      5, DRAM_ALIGNMENT, 2048, num_dram_banks_g * 3 + 1, 0);
     gen_dram_read_cmd(device, prefetch_cmds, cmd_sizes, device_data, worker_core,
                       3, 128, 6144, num_dram_banks_g - 1, 0);
 
     gen_dram_read_cmd(device, prefetch_cmds, cmd_sizes, device_data, worker_core,
                       0, 0, 128, 128, 32);
     gen_dram_read_cmd(device, prefetch_cmds, cmd_sizes, device_data, worker_core,
-                      4, 32, 2048, num_dram_banks_g * 2, 1536);
+                      4, DRAM_ALIGNMENT, 2048, num_dram_banks_g * 2, 1536);
     gen_dram_read_cmd(device, prefetch_cmds, cmd_sizes, device_data, worker_core,
-                      5, 32, 2048, num_dram_banks_g * 2 + 1, 256);
+                      5, DRAM_ALIGNMENT, 2048, num_dram_banks_g * 2 + 1, 256);
     gen_dram_read_cmd(device, prefetch_cmds, cmd_sizes, device_data, worker_core,
                       3, 128, 6144, num_dram_banks_g - 1, 640);
 
     // Large pages
     gen_dram_read_cmd(device, prefetch_cmds, cmd_sizes, device_data, worker_core,
-                      0, 0, scratch_db_size_g / 2 + 32, 2, 128); // just a little larger than the scratch_db, length_adjust backs into prior page
+                      0, 0, scratch_db_size_g / 2 + DRAM_ALIGNMENT, 2, 128); // just a little larger than the scratch_db, length_adjust backs into prior page
     gen_dram_read_cmd(device, prefetch_cmds, cmd_sizes, device_data, worker_core,
                       0, 0, scratch_db_size_g, 2, 0); // exactly the scratch db size
 
     // Forces length_adjust to back into prior read.  Device reads pages, shouldn't be a problem...
-    uint32_t page_size = 256 + 32;
+    uint32_t page_size = 256 + DRAM_ALIGNMENT;
     uint32_t length = scratch_db_size_g / 2 / page_size * page_size + page_size;
     gen_dram_read_cmd(device, prefetch_cmds, cmd_sizes, device_data, worker_core,
                       3, 128, page_size, length / page_size, 160);
@@ -1340,7 +1339,8 @@ void write_prefetcher_cmd(Device *device,
                           uint32_t prefetch_q_base,
                           uint32_t prefetch_q_rd_ptr_addr,
                           CoreCoord phys_prefetch_core,
-                          tt::Writer& prefetch_q_writer) {
+                          tt::Writer& prefetch_q_writer,
+                          uint32_t &debug_hugepage_addr) {
 
     static vector<uint32_t> read_vec;  // static to avoid realloc
 
@@ -1364,11 +1364,19 @@ void write_prefetcher_cmd(Device *device,
     uint32_t cmd_size_bytes = (cmd_size16b & ~prefetch_q_msb_mask) << dispatch_constants::PREFETCH_Q_LOG_MINSIZE;
     uint32_t cmd_size_words = cmd_size_bytes / sizeof(uint32_t);
 
+    uint32_t old_offset = cmd_offset;
     nt_memcpy((uint8_t *)host_mem_ptr, (uint8_t *)&cmds[cmd_offset], cmd_size_bytes);
     cmd_offset += cmd_size_words;
     host_mem_ptr += cmd_size_words;
+    debug_hugepage_addr += cmd_size_bytes;
 
     // This updates FetchQ where each entry of type prefetch_q_entry_type is size in 16B.
+    // std::cout << "Host writing fetch_size  " << (cmd_size16b << 4) << " to prefetch_q_dev_ptr " << prefetch_q_dev_ptr << std::endl;
+    // uint32_t prefetch_dispatch_size_words = (sizeof(CQPrefetchCmd) + sizeof(CQDispatchCmd)) / sizeof(uint32_t);
+    // for (int i = 0; i < prefetch_dispatch_size_words + 10; i++) {
+    //     std::cout << cmds[old_offset + i] << "\t";
+    // }
+    // std::cout << "\n";
     prefetch_q_writer.write(prefetch_q_dev_ptr, cmd_size16b);
 
     prefetch_q_dev_ptr += sizeof(dispatch_constants::prefetch_q_entry_type);
@@ -1384,7 +1392,8 @@ void write_prefetcher_cmds(uint32_t iterations,
                            uint32_t prefetch_q_rd_ptr_addr,
                            CoreCoord phys_prefetch_core,
                            tt::Writer& prefetch_q_writer,
-                           bool is_control_only) {
+                           bool is_control_only,
+                           uint32_t &debug_hugepage_addr) {
 
     static uint32_t *host_mem_ptr;
     static uint32_t prefetch_q_dev_ptr;
@@ -1421,10 +1430,12 @@ void write_prefetcher_cmds(uint32_t iterations,
                 // Wrap huge page
                 uint32_t offset = 0;
                 host_mem_ptr = (uint32_t *)host_hugepage_base;
+                debug_hugepage_addr = dev_hugepage_base_g;
             }
 
+            // std::cout << "Writing to host mem at " << debug_hugepage_addr << std::endl;
             write_prefetcher_cmd(device, prefetch_cmds, cmd_ptr, cmd_sizes[j],
-                                 host_mem_ptr, prefetch_q_dev_ptr, prefetch_q_dev_fence, prefetch_q_base, prefetch_q_rd_ptr_addr, phys_prefetch_core, prefetch_q_writer);
+                                 host_mem_ptr, prefetch_q_dev_ptr, prefetch_q_dev_fence, prefetch_q_base, prefetch_q_rd_ptr_addr, phys_prefetch_core, prefetch_q_writer, debug_hugepage_addr);
         }
     }
 }
@@ -1461,13 +1472,14 @@ std::chrono::duration<double> run_test(uint32_t iterations,
                                        uint32_t prefetch_q_base,
                                        uint32_t prefetch_q_rd_ptr_addr,
                                        CoreCoord phys_prefetch_core,
-                                       tt::Writer& prefetch_q_writer) {
+                                       tt::Writer& prefetch_q_writer,
+                                       uint32_t &debug_hugepage_addr) {
 
     auto start = std::chrono::system_clock::now();
 
     std::thread t1 ([&]() {
-        write_prefetcher_cmds(iterations, device, cmds, cmd_sizes, host_hugepage_base, dev_hugepage_base, prefetch_q_base, prefetch_q_rd_ptr_addr, phys_prefetch_core, prefetch_q_writer, false);
-        write_prefetcher_cmds(1, device, terminate_cmds, terminate_sizes, host_hugepage_base, dev_hugepage_base, prefetch_q_base, prefetch_q_rd_ptr_addr, phys_prefetch_core, prefetch_q_writer, true);
+        write_prefetcher_cmds(iterations, device, cmds, cmd_sizes, host_hugepage_base, dev_hugepage_base, prefetch_q_base, prefetch_q_rd_ptr_addr, phys_prefetch_core, prefetch_q_writer, false, debug_hugepage_addr);
+        write_prefetcher_cmds(1, device, terminate_cmds, terminate_sizes, host_hugepage_base, dev_hugepage_base, prefetch_q_base, prefetch_q_rd_ptr_addr, phys_prefetch_core, prefetch_q_writer, true, debug_hugepage_addr);
     });
     tt_metal::detail::LaunchProgram(device, program, false);
     if (test_device_id_g != 0) {
@@ -2849,6 +2861,8 @@ int main(int argc, char **argv) {
         DeviceData device_data(device, all_workers_g, l1_buf_base_g, DRAM_DATA_BASE_ADDR, (uint32_t*)host_hugepage_completion_buffer_base_g, false, DRAM_DATA_SIZE_WORDS);
         num_dram_banks_g = device->num_banks(BufferType::DRAM);
 
+        uint32_t debug_hugepage_addr = dev_hugepage_base_g;
+
         if (debug_g) {
             initialize_dram_banks(device);
         }
@@ -2865,7 +2879,7 @@ int main(int argc, char **argv) {
         gen_prefetcher_cmds(device_r, cmds, cmd_sizes, device_data, l1_buf_base_g);
         if (warmup_g) {
             log_info(tt::LogTest, "Warming up cache now...");
-            run_test(1, device, program, device_r, program_r, cmd_sizes, terminate_sizes, cmds, terminate_cmds, host_hugepage_base, dev_hugepage_base_g, prefetch_q_base, prefetch_q_rd_ptr_addr, phys_prefetch_core_g, prefetch_q_writer);
+            run_test(1, device, program, device_r, program_r, cmd_sizes, terminate_sizes, cmds, terminate_cmds, host_hugepage_base, dev_hugepage_base_g, prefetch_q_base, prefetch_q_rd_ptr_addr, phys_prefetch_core_g, prefetch_q_writer, debug_hugepage_addr);
             initialize_device_g = true;
         }
 
@@ -2878,14 +2892,14 @@ int main(int argc, char **argv) {
                 cmd_sizes.resize(0);
                 device_data.reset();
                 gen_prefetcher_cmds(device_r, cmds, cmd_sizes, device_data, l1_buf_base_g);
-                run_test(1, device, program, device_r, program_r, cmd_sizes, terminate_sizes, cmds, terminate_cmds, host_hugepage_base, dev_hugepage_base_g, prefetch_q_base, prefetch_q_rd_ptr_addr, phys_prefetch_core_g, prefetch_q_writer);
+                run_test(1, device, program, device_r, program_r, cmd_sizes, terminate_sizes, cmds, terminate_cmds, host_hugepage_base, dev_hugepage_base_g, prefetch_q_base, prefetch_q_rd_ptr_addr, phys_prefetch_core_g, prefetch_q_writer, debug_hugepage_addr);
                 pass &= device_data.validate(device_r);
                 if (!pass) {
                     break;
                 }
             }
         } else {
-            auto elapsed_seconds = run_test(iterations_g, device, program, device_r, program_r, cmd_sizes, terminate_sizes, cmds, terminate_cmds, host_hugepage_base, dev_hugepage_base_g, prefetch_q_base, prefetch_q_rd_ptr_addr, phys_prefetch_core_g, prefetch_q_writer);
+            auto elapsed_seconds = run_test(iterations_g, device, program, device_r, program_r, cmd_sizes, terminate_sizes, cmds, terminate_cmds, host_hugepage_base, dev_hugepage_base_g, prefetch_q_base, prefetch_q_rd_ptr_addr, phys_prefetch_core_g, prefetch_q_writer, debug_hugepage_addr);
 
             log_info(LogTest, "Ran in {}us", elapsed_seconds.count() * 1000 * 1000);
             log_info(LogTest, "Ran in {}us per iteration", elapsed_seconds.count() * 1000 * 1000 / iterations_g);
