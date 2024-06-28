@@ -154,6 +154,7 @@ void kernel_main() {
 
         tt_l1_ptr launch_msg_t * const launch_msg = GET_MAILBOX_ADDRESS_DEV(launch);
         if (launch_msg->exit_erisc_kernel) {
+            DEBUG_STATUS("EEB");
             break;
         }
         // need to optimize this.
