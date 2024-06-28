@@ -187,7 +187,7 @@ void EnqueueWriteInterleavedBufferCommand::add_buffer_data(HugepageDeviceCommand
             (((buffer_addr_offset / this->padded_page_size) * num_banks) + this->dst_page_index) *
             this->buffer.page_size();
         if (this->buffer.page_size() % this->buffer.alignment() != 0 and this->buffer.page_size() != this->buffer.size()) {
-            // If page size is not 32B-aligned, we cannot do a contiguous write
+            // If page size is not aligned, we cannot do a contiguous write
             uint32_t src_address_offset = unpadded_src_offset;
             for (uint32_t sysmem_address_offset = 0; sysmem_address_offset < data_size_bytes;
                  sysmem_address_offset += this->padded_page_size) {
@@ -263,6 +263,7 @@ void EnqueueWriteBufferCommand::process() {
     HugepageDeviceCommand command_sequence(cmd_region, cmd_sequence_sizeB);
 
     if (this->issue_wait) {
+        std::cout << "Adding a wait!" << std::endl;
         command_sequence.add_dispatch_wait(false, DISPATCH_MESSAGE_ADDR, this->expected_num_workers_completed);
     }
 
@@ -278,6 +279,13 @@ void EnqueueWriteBufferCommand::process() {
 
     this->manager.fetch_queue_reserve_back(this->command_queue_id);
     this->manager.fetch_queue_write(cmd_sequence_sizeB, this->command_queue_id);
+
+    // std::vector<uint32_t> readback(cmd_sequence_sizeB / sizeof(uint32_t));
+    // tt::Cluster::instance().read_sysmem(readback.data(), cmd_sequence_sizeB, 128, 0, 0);
+    // for (int i = 0; i < readback.size(); i++) {
+    //     std::cout << readback[i] << "\t";
+    // }
+    // std::cout << "\n";
 }
 
 // EnqueueProgramCommand Section
@@ -1130,13 +1138,14 @@ void EnqueueRecordEventCommand::process() {
         align(sizeof(CQDispatchCmd) + num_hw_cqs * sizeof(CQDispatchWritePackedUnicastSubCmd), L1_ALIGNMENT) +
         (align(dispatch_constants::EVENT_PADDED_SIZE, L1_ALIGNMENT) * num_hw_cqs);
     uint32_t packed_write_sizeB = align(sizeof(CQPrefetchCmd) + packed_event_payload_sizeB, PCIE_ALIGNMENT);
+    std::cout << "packed_write_sizeB " << packed_write_sizeB << std::endl;
 
     uint32_t cmd_sequence_sizeB =
         CQ_PREFETCH_CMD_BARE_MIN_SIZE +  // CQ_PREFETCH_CMD_RELAY_INLINE + CQ_DISPATCH_CMD_WAIT
         packed_write_sizeB +  // CQ_PREFETCH_CMD_RELAY_INLINE + CQ_DISPATCH_CMD_WRITE_PACKED + unicast subcmds + event
                               // payload
         align(
-            CQ_PREFETCH_CMD_BARE_MIN_SIZE + dispatch_constants::EVENT_PADDED_SIZE,
+            sizeof(CQPrefetchCmd) + sizeof(CQDispatchCmd) + dispatch_constants::EVENT_PADDED_SIZE,
             PCIE_ALIGNMENT);  // CQ_PREFETCH_CMD_RELAY_INLINE + CQ_DISPATCH_CMD_WRITE_LINEAR_HOST + event ID
 
     void* cmd_region = this->manager.issue_queue_reserve(cmd_sequence_sizeB, this->command_queue_id);
@@ -1379,6 +1388,7 @@ void HWCommandQueue::enqueue_read_buffer(Buffer& buffer, void* dst, bool blockin
     CoreType dispatch_core_type =
         dispatch_core_manager::get(this->device->num_hw_cqs()).get_dispatch_core_type(this->device->id());
 
+    tt::log_info(tt::LogDispatch, "EnqueueReadBuffer");
     uint32_t padded_page_size = buffer.aligned_page_size();
     uint32_t pages_to_read = buffer.num_pages();
     uint32_t unpadded_dst_offset = 0;
@@ -1597,7 +1607,7 @@ void HWCommandQueue::enqueue_write_buffer(const Buffer& buffer, const void* src,
                 if (pages_to_write > 0) {
                     uint32_t address = bank_base_address + curr_page_idx_in_shard * padded_page_size;
 
-                    tt::log_debug(tt::LogDispatch, "EnqueueWriteBuffer for channel {}", this->id);
+                    tt::log_info(tt::LogDispatch, "EnqueueWriteBuffer for channel {}", this->id);
 
                     auto command = EnqueueWriteShardedBufferCommand(
                         this->id,
@@ -1689,7 +1699,7 @@ void HWCommandQueue::enqueue_write_buffer(const Buffer& buffer, const void* src,
                 dst_page_index = residual;
             }
 
-            tt::log_debug(tt::LogDispatch, "EnqueueWriteBuffer for command queue {}", this->id);
+            tt::log_info(tt::LogDispatch, "EnqueueWriteBuffer for command queue {}", this->id);
 
             auto command = EnqueueWriteInterleavedBufferCommand(
                 this->id,
@@ -1755,6 +1765,7 @@ void HWCommandQueue::enqueue_program(Program& program, bool blocking) {
         this->expected_num_workers_completed += program.program_transfer_info.num_active_cores;
     }
 
+    tt::log_info(tt::LogDispatch, "EnqueueProgram");
     auto command = EnqueueProgramCommand(
         this->id, this->device, this->noc_index, program, this->manager, expected_workers_completed);
     this->enqueue_command(command, blocking);
@@ -1794,6 +1805,7 @@ void HWCommandQueue::enqueue_record_event(std::shared_ptr<Event> event, bool cle
     event->device = this->device;
     event->ready = true;  // what does this mean???
 
+    tt::log_info(tt::LogDispatch, "EnqueueRecordEvent");
     auto command = EnqueueRecordEventCommand(
         this->id,
         this->device,
@@ -1814,6 +1826,7 @@ void HWCommandQueue::enqueue_record_event(std::shared_ptr<Event> event, bool cle
 void HWCommandQueue::enqueue_wait_for_event(std::shared_ptr<Event> sync_event, bool clear_count) {
     ZoneScopedN("HWCommandQueue_enqueue_wait_for_event");
 
+    tt::log_info(tt::LogDispatch, "EnqueueWaitForEvent");
     auto command = EnqueueWaitForEventCommand(this->id, this->device, this->manager, *sync_event, clear_count);
     this->enqueue_command(command, false);
 
@@ -2103,7 +2116,7 @@ void HWCommandQueue::read_completion_queue() {
 
 void HWCommandQueue::finish() {
     ZoneScopedN("HWCommandQueue_finish");
-    tt::log_debug(tt::LogDispatch, "Finish for command queue {}", this->id);
+    tt::log_info(tt::LogDispatch, "Finish for command queue {}", this->id);
     std::shared_ptr<Event> event = std::make_shared<Event>();
     this->enqueue_record_event(event);
     if (tt::llrt::OptionsG.get_test_mode_enabled()) {
@@ -2148,7 +2161,7 @@ void HWCommandQueue::record_end() {
 void HWCommandQueue::terminate() {
     ZoneScopedN("HWCommandQueue_terminate");
     TT_FATAL(!this->manager.get_bypass_mode(), "Terminate cannot be used with tracing");
-    tt::log_debug(tt::LogDispatch, "Terminating dispatch kernels for command queue {}", this->id);
+    tt::log_info(tt::LogDispatch, "Terminating dispatch kernels for command queue {}", this->id);
     auto command = EnqueueTerminateCommand(this->id, this->device, this->manager);
     this->enqueue_command(command, false);
 }
@@ -2608,7 +2621,7 @@ void CommandQueue::start_worker() {
     }
     this->worker_state = CommandQueueState::RUNNING;
     this->worker_thread = std::make_unique<std::thread>(std::thread(&CommandQueue::run_worker, this));
-    tt::log_debug(tt::LogDispatch, "{} started worker thread", this->name());
+    tt::log_info(tt::LogDispatch, "{} started worker thread", this->name());
 }
 
 void CommandQueue::stop_worker() {
@@ -2618,7 +2631,7 @@ void CommandQueue::stop_worker() {
     this->worker_state = CommandQueueState::TERMINATE;
     this->worker_thread->join();
     this->worker_state = CommandQueueState::IDLE;
-    tt::log_debug(tt::LogDispatch, "{} stopped worker thread", this->name());
+    tt::log_info(tt::LogDispatch, "{} stopped worker thread", this->name());
 }
 
 void CommandQueue::run_worker() {
