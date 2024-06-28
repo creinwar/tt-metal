@@ -368,6 +368,29 @@ void Device::reset_cores() {
             try {
                 llrt::internal_::wait_until_cores_done(id_and_cores.first, RUN_MSG_GO, id_and_cores.second, timeout_ms);
             } catch (std::runtime_error &e) {
+                for (auto &phys_core : id_and_cores.second) {
+                    uint64_t mailbox_addr = MEM_MAILBOX_BASE;
+                    //if (is_eth_core) {
+                        //if (is_active_eth_core)
+                            mailbox_addr = eth_l1_mem::address_map::ERISC_MEM_MAILBOX_BASE;
+                        //else
+                            //mailbox_addr = MEM_IERISC_MAILBOX_BASE;
+                    //}
+
+                    std::vector<uint32_t> data;
+                    data = tt::llrt::read_hex_vec_from_core(id_and_cores.first, phys_core, mailbox_addr, sizeof(mailboxes_t));
+                    mailboxes_t *mbox_data = (mailboxes_t *)(&data[0]);
+                    string waypoint = "";
+                    for (int risc_idx = 0; risc_idx < num_riscv_per_core; risc_idx++) {
+                        debug_status_msg_t *status = &mbox_data->debug_status[risc_idx];
+                        for (int char_idx = 0; char_idx < num_status_bytes_per_riscv; char_idx++) {
+                            char val = status->status[char_idx];
+                            waypoint += val;
+                        }
+                        waypoint += ',';
+                    }
+                    log_warning("Device {}, phys core {} on waypoint {}.", id_and_cores.first, phys_core.str(), waypoint);
+                }
                 TT_THROW("Device {} init: failed to reset cores! Try resetting the board.", this->id());
             }
         }

@@ -119,9 +119,9 @@ void DevicePool::initialize_device(Device* dev) const {
     }
 
     DprintServerAttach(dev);
-    watcher_init(dev);
 
     dev->reset_cores();
+    watcher_init(dev);
     dev->initialize_and_launch_firmware();
 
     watcher_attach(dev);
