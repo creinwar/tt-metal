@@ -109,7 +109,6 @@ def calculate_perplexity(args, model, tokenizer, seq_len, max_len, stride, encod
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=max_batch_size, shuffle=False)
 
     # Run PPL eval
-    loss_func = torch.nn.CrossEntropyLoss(reduction="mean")
     nlls, top1s, top5s = [], [], []  # nlls, top1s, top5s
     with torch.no_grad():
         # Loop over the dataset
@@ -127,7 +126,12 @@ def calculate_perplexity(args, model, tokenizer, seq_len, max_len, stride, encod
             all_text, logits = outputs
             vocab_size = logits.shape[-1]
 
-            nll, top1, top5 = calculate_acc_metrics(logits.view(-1, vocab_size), labels.view(-1))
+            # Remove the prefilled tokens
+            logits_decoded, labels_decoded = logits[:, seq_len:, :], labels[..., seq_len:]
+            breakpoint()
+            assert logits_decoded.shape[1] == args.num_tokens - 1, "Number of decoded tokens is not as expected."
+
+            nll, top1, top5 = calculate_acc_metrics(logits_decoded.reshape(-1, vocab_size), labels_decoded.reshape(-1))
             nlls.append(nll)
             top1s.append(top1)
             top5s.append(top5)
