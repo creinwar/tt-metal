@@ -247,7 +247,7 @@ void Cluster::open_driver(
         // Silicon driver will attempt to open this many hugepages as channels, and assert if workload uses more than
         // available. Metal currently uses assigns 1 channel per device
         uint32_t num_host_mem_ch_per_mmio_device =
-            this->arch_ == tt::ARCH::BLACKHOLE ? 0 : controlled_device_ids.size();
+            this->arch_ == tt::ARCH::BLACKHOLE ? 1 : controlled_device_ids.size();
         if (is_tg_cluster_) {
             num_host_mem_ch_per_mmio_device = HOST_MEM_CHANNELS;
         }
@@ -287,9 +287,7 @@ void Cluster::start_driver(chip_id_t mmio_device_id, tt_device_params &device_pa
 
     TT_FATAL(this->sdesc_per_chip_.size(), "Descriptor must be loaded. Try open_driver()");
 
-    // static TLBs avoided for Blackhole bring up
-    if (this->target_type_ == TargetDevice::Silicon && device_params.init_device &&
-        this->arch_ != tt::ARCH::BLACKHOLE) {
+    if (this->target_type_ == TargetDevice::Silicon && device_params.init_device) {
         ll_api::configure_static_tlbs(
             this->arch_, mmio_device_id, this->get_soc_desc(mmio_device_id), this->get_driver(mmio_device_id));
     }
