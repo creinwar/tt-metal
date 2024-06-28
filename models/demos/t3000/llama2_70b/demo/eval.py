@@ -21,6 +21,8 @@ from models.demos.t3000.llama2_70b.tt.llama_common import (
     check_device_mesh,
 )
 
+from models.datasets.llm_dataset_utils import calculate_acc_metrics
+
 
 def main(args):
     # Set random reproducible seed
@@ -51,7 +53,7 @@ def main(args):
         + 1
     )
 
-    perplexity = calculate_perplexity(
+    perplexity, top1, top5 = calculate_perplexity(
         args, model, tokenizer, seq_len, max_length, stride, encodings, num_samples, max_batch_size
     )
 
@@ -63,6 +65,8 @@ def main(args):
     result = {
         "model": args.llama_version,
         "perplexity": perplexity.item(),
+        "top1": top1,
+        "top5": top5,
         "seq_len": args.sample_len,
         "gen_length": args.num_tokens,
     }
@@ -70,6 +74,8 @@ def main(args):
         json.dump(result, f)
 
     logger.info("Perplexity: %f" % perplexity)
+    logger.info("Top1: %f" % top1)
+    logger.info("Top5: %f" % top5)
     if perplexity < args.perplexity_score:
         logger.info("Perplexity is less than the threshold")
     else:
@@ -104,8 +110,7 @@ def calculate_perplexity(args, model, tokenizer, seq_len, max_len, stride, encod
 
     # Run PPL eval
     loss_func = torch.nn.CrossEntropyLoss(reduction="mean")
-    nlls = []
-    tokens_seen = 0
+    nlls, top1s, top5s = [], [], []  # nlls, top1s, top5s
     with torch.no_grad():
         # Loop over the dataset
         for sample in tqdm(dataloader):
@@ -121,18 +126,22 @@ def calculate_perplexity(args, model, tokenizer, seq_len, max_len, stride, encod
 
             all_text, logits = outputs
             vocab_size = logits.shape[-1]
-            loss = loss_func(logits.view(-1, vocab_size), labels.view(-1))
-            neg_log_likelihood = loss.to("cpu").float() * seq_len * max_batch_size
-            tokens_seen += seq_len * max_batch_size
-            nlls.append(neg_log_likelihood)
 
-    loss = torch.stack(nlls).sum() / tokens_seen
-    ppl = torch.exp(loss)
+            nll, top1, top5 = calculate_acc_metrics(logits.view(-1, vocab_size), labels.view(-1))
+            nlls.append(nll)
+            top1s.append(top1)
+            top5s.append(top5)
+
+    loss = sum(nlls) / len(nlls)
+    top1_avg = sum(top1s) / len(top1s)
+    top5_avg = sum(top5s) / len(top5s)
+
+    ppl = torch.exp(torch.tensor([loss]))
 
     logger.info(f"Evaluation execution time:\t{time() - start}")
     logger.info("Loss: %f" % loss)
 
-    return ppl
+    return ppl, top1_avg, top5_avg
 
 
 def wikitext_detokenizer(string):
@@ -209,6 +218,8 @@ class Args:
         sample_len=128,
         num_samples=32,
         perplexity_score=5.4,
+        top1_score=0.0,
+        top5_score=0.0,
         llama_version="llama3",
     ):
         self.implementation = implementation
@@ -276,7 +287,7 @@ def construct_arg(**kwargs):
     ],
     ids=["greedy", "sampling"],
 )
-@pytest.mark.parametrize(  # sample_len => prefill length, num_samples => decode length
+@pytest.mark.parametrize(  # sample_len => prefill length, num_tokens => decode length
     "dataset, split, config, stride, sample_len, num_tokens, num_samples, perplexity_score",
     [
         ("wikitext", "test", "wikitext-2-raw-v1", 128, 128, 1, 128, 5.4),
