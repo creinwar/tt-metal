@@ -224,16 +224,16 @@ void Device::initialize_and_launch_firmware() {
     }
 
     // Load erisc app base FW to eth cores
-    for (const auto &eth_core : this->get_active_ethernet_cores()) {
-        CoreCoord phys_eth_core = this->ethernet_core_from_logical_core(eth_core);
-        this->initialize_firmware(phys_eth_core, &launch_msg);
-    }
+    // for (const auto &eth_core : this->get_active_ethernet_cores()) {
+    //     CoreCoord phys_eth_core = this->ethernet_core_from_logical_core(eth_core);
+    //     this->initialize_firmware(phys_eth_core, &launch_msg);
+    // }
 
-    for (const auto &eth_core : this->get_inactive_ethernet_cores()) {
-        CoreCoord phys_eth_core = this->ethernet_core_from_logical_core(eth_core);
-        this->initialize_firmware(phys_eth_core, &launch_msg);
-        not_done_cores.insert(phys_eth_core);
-    }
+    // for (const auto &eth_core : this->get_inactive_ethernet_cores()) {
+    //     CoreCoord phys_eth_core = this->ethernet_core_from_logical_core(eth_core);
+    //     this->initialize_firmware(phys_eth_core, &launch_msg);
+    //     not_done_cores.insert(phys_eth_core);
+    // }
 
     // Barrier between L1 writes above and deassert below
     tt::Cluster::instance().l1_barrier(this->id());
@@ -1640,7 +1640,9 @@ bool Device::close() {
         if (hw_command_queue->manager.get_bypass_mode()) {
             hw_command_queue->record_end();
         }
+        log_info(tt::LogMetal, "Terminating CQ for {}", this->id_);
         hw_command_queue->terminate();
+        log_info(tt::LogMetal, "Done terminating CQ for {}", this->id_);
     }
     this->work_executor.reset();
     tt_metal::detail::DumpDeviceProfileResults(this, true);
@@ -1649,7 +1651,7 @@ bool Device::close() {
     detail::EnableAllocs(this);
 
     this->deallocate_buffers();
-    watcher_detach(this);
+    // watcher_detach(this);
 
     std::unordered_set<CoreCoord> not_done_dispatch_cores;
     std::unordered_set<CoreCoord> cores_to_skip;
@@ -1666,13 +1668,15 @@ bool Device::close() {
                         tt_cxy_pair dispatch_location = dispatch_core_manager::get(curr_num_hw_cqs).dispatcher_core(device_id, curr_channel, cq_id);
                         CoreCoord phys_core = get_physical_core_coordinate(dispatch_location, dispatch_core_type);
                         not_done_dispatch_cores.insert(phys_core);
-                        log_debug(tt::LogMetal, "MMIO Device Dispatch core: Logical: {} - Physical: {}", dispatch_location.str(), phys_core.str());
+                        log_info(tt::LogMetal, "MMIO Device Dispatch core: Logical: {} - Physical: {}", dispatch_location.str(), phys_core.str());
                     }
                     if (dispatch_core_manager::get(curr_num_hw_cqs).is_prefetcher_core_allocated(device_id, curr_channel, cq_id)) {
                         tt_cxy_pair prefetch_location = dispatch_core_manager::get(curr_num_hw_cqs).prefetcher_core(device_id, curr_channel, cq_id);
                         CoreCoord phys_core = get_physical_core_coordinate(prefetch_location, dispatch_core_type);
                         not_done_dispatch_cores.insert(phys_core);
-                        log_debug(tt::LogMetal, "MMIO Device Prefetch core: Logical: {} - Physical: {}", prefetch_location.str(), phys_core.str());
+                        log_info(tt::LogMetal, "MMIO Device Prefetch core: Logical: {} - Physical: {}", prefetch_location.str(), phys_core.str());
+                    } else {
+                        log_info(tt::LogMetal, "prefetch core not allocated?");
                     }
                 } else if (tt::DevicePool::instance().is_device_active(device_id)) {
                     //non mmio devices serviced by this mmio capable device.
@@ -1744,6 +1748,7 @@ bool Device::close() {
     llrt::internal_::wait_until_cores_done(mmio_device_id, RUN_MSG_GO, wait_for_cores);
 
     DprintServerDetach(this);
+    watcher_detach(this);
 
     // Assert worker cores
     CoreCoord grid_size = this->logical_grid_size();
