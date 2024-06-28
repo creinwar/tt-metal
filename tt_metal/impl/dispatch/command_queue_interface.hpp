@@ -15,7 +15,6 @@
 using namespace tt::tt_metal;
 
 // todo consider moving these to dispatch_addr_map
-static constexpr uint32_t PCIE_ALIGNMENT = std::max(NOC_PCIE_READ_ALIGNMENT_BYTES, NOC_PCIE_WRITE_ALIGNMENT_BYTES);
 static constexpr uint32_t MAX_HUGEPAGE_SIZE = 1 << 30; // 1GB;
 static constexpr uint32_t MAX_DEV_CHANNEL_SIZE = 1 << 28; // 256 MB;
 static constexpr uint32_t DEVICES_PER_UMD_CHANNEL = MAX_HUGEPAGE_SIZE / MAX_DEV_CHANNEL_SIZE; // 256 MB;
@@ -512,6 +511,7 @@ class SystemMemoryManager {
         //  so channel offset needs to be subtracted to get address relative to channel
         // TODO: Reconsider offset sysmem offset calculations based on
         // https://github.com/tenstorrent/tt-metal/issues/4757
+        std::cout << "Issue q wr ptr " << issue_q_write_ptr << " channel offset " << this->channel_offset << std::endl;
         void *issue_q_region = this->cq_sysmem_start + (issue_q_write_ptr - this->channel_offset);
 
         return issue_q_region;
@@ -661,6 +661,7 @@ class SystemMemoryManager {
         if (stall_prefetcher) {
             command_size_16B |= (1 << ((sizeof(dispatch_constants::prefetch_q_entry_type) * 8) - 1));
         }
+        std::cout << "Writing " << (command_size_16B << 4) << " to " << this->prefetch_q_dev_ptrs[cq_id] << std::endl;
         this->prefetch_q_writers[cq_id].write(this->prefetch_q_dev_ptrs[cq_id], command_size_16B);
         this->prefetch_q_dev_ptrs[cq_id] += sizeof(dispatch_constants::prefetch_q_entry_type);
     }
