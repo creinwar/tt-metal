@@ -41,8 +41,10 @@ constexpr uint32_t split_prefetch = get_compile_time_arg_val(15);
 constexpr uint32_t prefetch_h_noc_xy = get_compile_time_arg_val(16);
 constexpr uint32_t prefetch_h_local_downstream_sem_addr = get_compile_time_arg_val(17);
 constexpr uint32_t prefetch_h_max_credits = get_compile_time_arg_val(18);
-constexpr uint32_t is_d_variant = get_compile_time_arg_val(19);
-constexpr uint32_t is_h_variant = get_compile_time_arg_val(20);
+// Number of cores in compute grid
+constexpr uint32_t max_write_packed_cores = get_compile_time_arg_val(19);
+constexpr uint32_t is_d_variant = get_compile_time_arg_val(20);
+constexpr uint32_t is_h_variant = get_compile_time_arg_val(21);
 
 constexpr uint32_t upstream_noc_xy = uint32_t(NOC_XY_ENCODING(UPSTREAM_NOC_X, UPSTREAM_NOC_Y));
 constexpr uint32_t downstream_noc_xy = uint32_t(NOC_XY_ENCODING(DOWNSTREAM_NOC_X, DOWNSTREAM_NOC_Y));
@@ -77,9 +79,7 @@ static uint32_t cmd_ptr;   // walks through pages in cb cmd by cmd
 
 static uint32_t downstream_cb_data_ptr = downstream_cb_base;
 
-// For packed write on GS, below must be>= 120 - 1. TODO: this should be a compile time arg passed in from host
 // For packed_write_large, must match CQ_DISPATCH_CMD_PACKED_WRITE_LARGE_MAX_SUB_CMDS
-constexpr uint32_t max_write_packed_cores = 108;
 constexpr uint32_t max_write_packed_large_cmd =
     CQ_DISPATCH_CMD_PACKED_WRITE_LARGE_MAX_SUB_CMDS *
     sizeof(CQDispatchWritePackedLargeSubCmd) / sizeof(uint32_t);
