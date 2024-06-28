@@ -303,6 +303,8 @@ def test_all_gather_on_t3000_post_commit_looping(
         ttl.tensor.MemoryConfig(buffer_type=ttl.tensor.BufferType.L1),
     ],
 )
+@pytest.mark.parametrize("num_workers", [2, 4, 6, 8])
+@pytest.mark.parametrize("max_channel_size", [8704, 8720, 13056, 13072, 17408, 17424, 21760, 21776])
 def test_all_gather_on_t3000_post_commit(
     all_devices,
     num_devices,
@@ -314,6 +316,8 @@ def test_all_gather_on_t3000_post_commit(
     mem_config,
     use_program_cache,
     function_level_defaults,
+    num_workers,
+    max_channel_size,
 ):
     run_all_gather_on_t3000_impl(
         all_devices,
@@ -326,6 +330,8 @@ def test_all_gather_on_t3000_post_commit(
         mem_config,
         use_program_cache,
         function_level_defaults,
+        num_workers=num_workers,
+        max_channel_size=max_channel_size,
     )
 
 
