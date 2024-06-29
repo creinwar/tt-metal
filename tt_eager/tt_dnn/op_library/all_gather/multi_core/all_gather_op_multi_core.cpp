@@ -683,8 +683,8 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
                         auto build_sender_worker_ct_args = [&]() {
                             std::vector<uint32_t> args = {
                                 static_cast<uint32_t>(all_gather_config.is_output_dram()),// dst_is_dram
-                                // static_cast<uint32_t>(sender_worker_num_transfers.at(i).at(b)),// num_transfers
-                                static_cast<uint32_t>(reader_worker_num_transfers.at(i).at(b)),// num_transfers
+                                static_cast<uint32_t>(sender_worker_num_transfers.at(i).at(b)),// num_transfers
+                                // static_cast<uint32_t>(reader_worker_num_transfers.at(i).at(b)),// num_transfers
                                 static_cast<uint32_t>(num_full_chunks_per_worker.at(b)),// num_full_chunks
                                 static_cast<uint32_t>(output_page_size),// output_page_size
                                 static_cast<uint32_t>(pages_per_eth_l1_buffer.at(b)),// num_pages_per_full_chunk
