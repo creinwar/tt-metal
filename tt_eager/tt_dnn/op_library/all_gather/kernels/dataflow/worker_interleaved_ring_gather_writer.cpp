@@ -40,7 +40,7 @@ void kernel_main() {
     constexpr uint32_t ring_size = get_compile_time_arg_val(21);
     static_assert(half_cb_n_pages > rem_num_pages, "half_cb_n_pages must be greater than or equal to rem_num_pages");
 
-    DPRINT << "WR num_Transfers: " << num_transfers << ", num_full_chunks: " << num_full_chunks << ", rem_num_pages: " << rem_num_pages << "\n";
+    // DPRINT << "WR num_Transfers: " << num_transfers << ", num_full_chunks: " << num_full_chunks << ", rem_num_pages: " << rem_num_pages << "\n";
 
     constexpr uint32_t cb_id = tt::CB::c_in0;
     #ifdef RM_INTERLEAVED
@@ -74,11 +74,11 @@ void kernel_main() {
         uint32_t num_filler_pages = num_pages_per_full_chunk - num_pages_to_forward;
 
         for (uint32_t i = 0; i < (num_transfers + 1); ++i) {
-            DPRINT << "WR nsw \n";
+            // DPRINT << "WR nsw \n";
             if (i != num_transfers) {
                 noc_semaphore_wait(local_sem_ptr, 1);
                 noc_semaphore_set(local_sem_ptr, 0);
-                DPRINT << "WR wasc \n";
+                // DPRINT << "WR wasc \n";
                 write_and_send_chunk(
                     output_page_idx,
                     col_idx,
@@ -109,7 +109,7 @@ void kernel_main() {
 
             }
             if (num_filler_pages != 0) {
-                DPRINT << "WR pop_filler_pages_from_cb \n";
+                // DPRINT << "WR pop_filler_pages_from_cb \n";
                 pop_filler_pages_from_cb(cb_id, num_filler_pages);
             }
 
@@ -156,5 +156,5 @@ void kernel_main() {
             row_idx = row_start_idx;
         }
     }
-    DPRINT << "WR Done \n";
+    // DPRINT << "WR Done \n";
 }

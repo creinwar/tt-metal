@@ -153,7 +153,7 @@ void kernel_main() {
     for (uint32_t channel = 0; channel < sender_num_channels; channel++) {
         uint32_t const sender_buffer_address = get_arg_val<uint32_t>(args_offset++);
         uint32_t const sender_num_messages_to_send = get_arg_val<uint32_t>(args_offset++);
-        DPRINT << "EDMS num_messages: " << sender_num_messages_to_send << "\n";
+        // DPRINT << "EDMS num_messages: " << sender_num_messages_to_send << "\n";
         // Each channel buffer is at buffer_base + (channel_id * sender_channel_size)
         // Each channel currently constrained to the same buffer size
         uint32_t const sender_channel_size = get_arg_val<uint32_t>(args_offset++);
@@ -188,7 +188,7 @@ void kernel_main() {
     for (uint32_t channel = 0; channel < receiver_num_channels; channel++) {
         uint32_t const receiver_buffers_base_address = get_arg_val<uint32_t>(args_offset++);
         uint32_t const receiver_num_messages_to_send = get_arg_val<uint32_t>(args_offset++);
-        DPRINT << "EDMR num_messages: " << receiver_num_messages_to_send << "\n";
+        // DPRINT << "EDMR num_messages: " << receiver_num_messages_to_send << "\n";
         // Each channel buffer is at buffer_base + (channel_id * sender_channel_size)
         // Each channel currently constrained to the same buffer size
         uint32_t const receiver_channel_size = get_arg_val<uint32_t>(args_offset++);
@@ -234,7 +234,12 @@ void kernel_main() {
     bool senders_in_progress = num_senders_complete != sender_num_channels;
     bool receivers_in_progress = num_receivers_complete != receiver_num_channels;
 
-    if constexpr (false)
+    // Time with new EDM
+    //
+    // Time with old EDM
+    // (32x8192, bfp8, 8 chip, 4 worker) = 34657 cycles
+
+    if constexpr (true)
     {
         bool printed = false;
         uint32_t context_switches = 0;
@@ -256,7 +261,7 @@ void kernel_main() {
                 // No message appear to be unacknowledged
                 // ^^^ Before merging sender and receiver state checks
 
-                // DeviceZoneScopedN("EDM_CHECK_ADVANCEABLE");
+                DeviceZoneScopedN("EDM_CHECK_ADVANCEABLE");
                 {
                     // DeviceZoneScopedN("EDM_CHECK_ADVANCEABLE_SENDER");
                     uint8_t index = advanceable_index;
@@ -510,6 +515,6 @@ void kernel_main() {
         }
     }
 
-    DPRINT << "DONE FINAL TEARDOWN " << chip_id << "\n";
+    // DPRINT << "DONE FINAL TEARDOWN " << chip_id << "\n";
     DEBUG_STATUS("DONE");
 }
