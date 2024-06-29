@@ -153,6 +153,7 @@ void kernel_main() {
     for (uint32_t channel = 0; channel < sender_num_channels; channel++) {
         uint32_t const sender_buffer_address = get_arg_val<uint32_t>(args_offset++);
         uint32_t const sender_num_messages_to_send = get_arg_val<uint32_t>(args_offset++);
+        DPRINT << "EDMS num_messages: " << sender_num_messages_to_send << "\n";
         // Each channel buffer is at buffer_base + (channel_id * sender_channel_size)
         // Each channel currently constrained to the same buffer size
         uint32_t const sender_channel_size = get_arg_val<uint32_t>(args_offset++);
@@ -187,6 +188,7 @@ void kernel_main() {
     for (uint32_t channel = 0; channel < receiver_num_channels; channel++) {
         uint32_t const receiver_buffers_base_address = get_arg_val<uint32_t>(args_offset++);
         uint32_t const receiver_num_messages_to_send = get_arg_val<uint32_t>(args_offset++);
+        DPRINT << "EDMR num_messages: " << receiver_num_messages_to_send << "\n";
         // Each channel buffer is at buffer_base + (channel_id * sender_channel_size)
         // Each channel currently constrained to the same buffer size
         uint32_t const receiver_channel_size = get_arg_val<uint32_t>(args_offset++);
@@ -232,7 +234,7 @@ void kernel_main() {
     bool senders_in_progress = num_senders_complete != sender_num_channels;
     bool receivers_in_progress = num_receivers_complete != receiver_num_channels;
 
-    // if constexpr (true)
+    if constexpr (false)
     {
         bool printed = false;
         uint32_t context_switches = 0;
@@ -395,92 +397,92 @@ void kernel_main() {
         }
         // DPRINT << "DONE MAIN LOOP@@\n";
     }
-    // else {
-        // uint32_t did_nothing_count = 0;
-        // auto send_recv_index = sender_receiver_index_t<num_senders, num_receivers>(
-        //     sender_channels_start, receiver_channels_start, sender_num_channels, receiver_num_channels);
-        // while (senders_in_progress || receivers_in_progress) {
-        //     DeviceZoneScopedN("EDM_LOOP_ITER");
-        //     bool did_something_sender = false;
-        //     bool did_something_receiver = false;
+    else {
+        uint32_t did_nothing_count = 0;
+        auto send_recv_index = sender_receiver_index_t<num_senders, num_receivers>(
+            sender_channels_start, receiver_channels_start, sender_num_channels, receiver_num_channels);
+        while (senders_in_progress || receivers_in_progress) {
+            DeviceZoneScopedN("EDM_LOOP_ITER");
+            bool did_something_sender = false;
+            bool did_something_receiver = false;
 
-        //     uint32_t num_receivers_complete_old = num_receivers_complete;
-        //     uint32_t num_senders_complete_old = num_senders_complete;
-        //     //////////////////////////////////////
-        //     // SENDER
-        //     if constexpr (enable_sender_side) {
-        //         ChannelBufferT &current_sender = buffer_channels[send_recv_index.real_index.sender];
-        //         switch (current_sender.get_state()) {
-        //             case ChannelBufferT::STATE::SENDER_WAITING_FOR_WORKER:
-        //             did_something_sender =
-        //                 erisc::datamover::sender_noc_receive_payload_ack_check_sequence(current_sender,
-        //                 num_senders_complete);
-        //             senders_in_progress = senders_in_progress && num_senders_complete != sender_num_channels;
-        //             break;
+            uint32_t num_receivers_complete_old = num_receivers_complete;
+            uint32_t num_senders_complete_old = num_senders_complete;
+            //////////////////////////////////////
+            // SENDER
+            if constexpr (enable_sender_side) {
+                ChannelBufferT &current_sender = buffer_channels[send_recv_index.real_index.sender];
+                switch (current_sender.get_state()) {
+                    case ChannelBufferT::STATE::SENDER_WAITING_FOR_WORKER:
+                    did_something_sender =
+                        erisc::datamover::sender_noc_receive_payload_ack_check_sequence(current_sender,
+                        num_senders_complete);
+                    senders_in_progress = senders_in_progress && num_senders_complete != sender_num_channels;
+                    break;
 
-        //             case ChannelBufferT::STATE::SENDER_READY_FOR_ETH_TRANSFER:
-        //             did_something_sender = erisc::datamover::sender_eth_send_data_sequence(current_sender);
-        //                 break;
+                    case ChannelBufferT::STATE::SENDER_READY_FOR_ETH_TRANSFER:
+                    did_something_sender = erisc::datamover::sender_eth_send_data_sequence(current_sender);
+                        break;
 
-        //             // case ChannelBufferT::STATE::SIGNALING_WORKER:
-        //             // did_something_sender = erisc::datamover::sender_notify_workers_if_buffer_available_sequence(
-        //             //                     current_sender, num_senders_complete);
-        //             // senders_in_progress = senders_in_progress && num_senders_complete != sender_num_channels;
-        //             // break;
+                    // case ChannelBufferT::STATE::SIGNALING_WORKER:
+                    // did_something_sender = erisc::datamover::sender_notify_workers_if_buffer_available_sequence(
+                    //                     current_sender, num_senders_complete);
+                    // senders_in_progress = senders_in_progress && num_senders_complete != sender_num_channels;
+                    // break;
 
-        //             case ChannelBufferT::STATE::SENDER_WAITING_FOR_ETH:
-        //             did_something_sender =
-        //                 erisc::datamover::sender_eth_check_receiver_ack_sequence(current_sender,
-        //                 num_senders_complete);
-        //             senders_in_progress = senders_in_progress && num_senders_complete != sender_num_channels;
-        //             break;
+                    case ChannelBufferT::STATE::SENDER_WAITING_FOR_ETH:
+                    did_something_sender =
+                        erisc::datamover::sender_eth_check_receiver_ack_sequence(current_sender,
+                        num_senders_complete);
+                    senders_in_progress = senders_in_progress && num_senders_complete != sender_num_channels;
+                    break;
 
-        //             default:
-        //             break;
-        //         };
-        //     }
+                    default:
+                    break;
+                };
+            }
 
-        //     //////////////////////////////////////
-        //     // RECEIVER
-        //     if constexpr (enable_receiver_side) {
-        //         ChannelBufferT &current_receiver = buffer_channels[send_recv_index.real_index.receiver];
+            //////////////////////////////////////
+            // RECEIVER
+            if constexpr (enable_receiver_side) {
+                ChannelBufferT &current_receiver = buffer_channels[send_recv_index.real_index.receiver];
 
-        //         switch (current_receiver.get_state()) {
-        //             case ChannelBufferT::STATE::RECEIVER_WAITING_FOR_ETH:
-        //             did_something_receiver = erisc::datamover::receiver_eth_accept_payload_sequence(current_receiver,
-        //             num_receivers_complete, eth_transaction_ack_word_addr); receivers_in_progress =
-        //             receivers_in_progress && num_receivers_complete != receiver_num_channels; break;
+                switch (current_receiver.get_state()) {
+                    case ChannelBufferT::STATE::RECEIVER_WAITING_FOR_ETH:
+                    did_something_receiver = erisc::datamover::receiver_eth_accept_payload_sequence(current_receiver,
+                    num_receivers_complete, eth_transaction_ack_word_addr); receivers_in_progress =
+                    receivers_in_progress && num_receivers_complete != receiver_num_channels; break;
 
-        //             case ChannelBufferT::STATE::RECEIVER_SIGNALING_WORKER:
-        //             did_something_receiver =
-        //                 erisc::datamover::receiver_eth_notify_workers_payload_available_sequence(current_receiver);
-        //             break;
+                    case ChannelBufferT::STATE::RECEIVER_SIGNALING_WORKER:
+                    did_something_receiver =
+                        erisc::datamover::receiver_eth_notify_workers_payload_available_sequence(current_receiver);
+                    break;
 
-        //             case ChannelBufferT::STATE::RECEIVER_WAITING_FOR_WORKER:
-        //             did_something_receiver = erisc::datamover::receiver_noc_read_worker_completion_check_sequence(
-        //                                 current_receiver, num_receivers_complete);
-        //             receivers_in_progress = receivers_in_progress && num_receivers_complete != receiver_num_channels;
-        //             break;
+                    case ChannelBufferT::STATE::RECEIVER_WAITING_FOR_WORKER:
+                    did_something_receiver = erisc::datamover::receiver_noc_read_worker_completion_check_sequence(
+                                        current_receiver, num_receivers_complete);
+                    receivers_in_progress = receivers_in_progress && num_receivers_complete != receiver_num_channels;
+                    break;
 
-        //             default:
-        //             break;
-        //         };
-        //     }
-        //     send_recv_index.increment();
-        //     //////////////////////////////////////
+                    default:
+                    break;
+                };
+            }
+            send_recv_index.increment();
+            //////////////////////////////////////
 
-        //     // Enabling this block as is (with all the "did_something"s, seems to cause a loss of about
-        //     // 0.5 GBps in throughput)
-        //     if (did_something_sender || did_something_receiver) {
-        //         did_nothing_count = 0;
-        //     } else {
-        //         if (did_nothing_count++ > SWITCH_INTERVAL) {
-        //             did_nothing_count = 0;
-        //             run_routing();
-        //         }
-        //     }
-        // }
-    // }
+            // Enabling this block as is (with all the "did_something"s, seems to cause a loss of about
+            // 0.5 GBps in throughput)
+            if (did_something_sender || did_something_receiver) {
+                did_nothing_count = 0;
+            } else {
+                if (did_nothing_count++ > SWITCH_INTERVAL) {
+                    did_nothing_count = 0;
+                    run_routing();
+                }
+            }
+        }
+    }
 
     // DPRINT << "TEARING DOWN\n";
     {
@@ -508,6 +510,6 @@ void kernel_main() {
         }
     }
 
-    // DPRINT << "DONE FINAL TEARDOWN " << chip_id << "\n";
+    DPRINT << "DONE FINAL TEARDOWN " << chip_id << "\n";
     DEBUG_STATUS("DONE");
 }

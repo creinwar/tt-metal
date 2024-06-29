@@ -40,12 +40,14 @@ void kernel_main() {
     constexpr uint32_t ring_size = get_compile_time_arg_val(21);
     static_assert(half_cb_n_pages > rem_num_pages, "half_cb_n_pages must be greater than or equal to rem_num_pages");
 
-    constexpr uint32_t cb_id_in0 = tt::CB::c_in0;
+    DPRINT << "WR num_Transfers: " << num_transfers << ", num_full_chunks: " << num_full_chunks << ", rem_num_pages: " << rem_num_pages << "\n";
+
+    constexpr uint32_t cb_id = tt::CB::c_in0;
     #ifdef RM_INTERLEAVED
     InterleavedAddrGen<dst_is_dram> d = {
         .bank_base_address = dst_addr + output_start_addr_offset, .page_size = output_page_size};
     #elif defined TILE_INTERLEAVED
-    const DataFormat in0_df = get_dataformat(cb_id_in0);
+    const DataFormat in0_df = get_dataformat(cb_id);
 
     InterleavedAddrGenFast<dst_is_dram> d = {
         .bank_base_address = dst_addr,
@@ -71,25 +73,43 @@ void kernel_main() {
         uint32_t num_pages_to_forward = std::min(num_pages_per_full_chunk, total_num_pages - i);
         uint32_t num_filler_pages = num_pages_per_full_chunk - num_pages_to_forward;
 
-        for (uint32_t i = 0; i < num_transfers; ++i) {
-            noc_semaphore_wait(local_sem_ptr, 1);
-            noc_semaphore_set(local_sem_ptr, 0);
-            write_and_send_chunk(
-                output_page_idx,
-                col_idx,
-                row_idx,
-                cb_id,
-                d,
-                num_cols,
-                num_rows,
-                col_offset,
-                row_offset,
-                num_pages_to_forward,
-                page_size,
-                edm_l1_sender_base_noc_addr,
-                edm_semaphore_noc_addr);
+        for (uint32_t i = 0; i < (num_transfers + 1); ++i) {
+            DPRINT << "WR nsw \n";
+            if (i != num_transfers) {
+                noc_semaphore_wait(local_sem_ptr, 1);
+                noc_semaphore_set(local_sem_ptr, 0);
+                DPRINT << "WR wasc \n";
+                write_and_send_chunk(
+                    output_page_idx,
+                    col_idx,
+                    row_idx,
+                    cb_id,
+                    d,
+                    num_cols,
+                    num_rows,
+                    col_offset,
+                    row_offset,
+                    num_pages_to_forward,
+                    output_page_size,
+                    edm_l1_sender_base_noc_addr,
+                    edm_semaphore_noc_addr);
+            } else {
+                write_chunk(
+                    output_page_idx,
+                    col_idx,
+                    row_idx,
+                    cb_id,
+                    d,
+                    num_cols,
+                    num_rows,
+                    col_offset,
+                    row_offset,
+                    num_pages_to_forward,
+                    output_page_size);
 
+            }
             if (num_filler_pages != 0) {
+                DPRINT << "WR pop_filler_pages_from_cb \n";
                 pop_filler_pages_from_cb(cb_id, num_filler_pages);
             }
 
@@ -136,4 +156,5 @@ void kernel_main() {
             row_idx = row_start_idx;
         }
     }
+    DPRINT << "WR Done \n";
 }

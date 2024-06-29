@@ -442,12 +442,11 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
 
             std::vector<CoreCoord> sender_worker_cores;
             std::vector<CoreCoord> receiver_worker_cores;
-            std::vector<CoreCoord> worker_cores;
 
             if (merge_receiver_and_sender_workers) {
-                worker_cores = corerange_to_cores(workers, std::nullopt, true);
-                all_worker_cores.insert(all_worker_cores.end(), worker_cores.begin(), worker_cores.end());
-
+                sender_worker_cores = corerange_to_cores(workers, std::nullopt, true);
+                receiver_worker_cores = corerange_to_cores(workers, std::nullopt, true);
+                all_worker_cores.insert(all_worker_cores.end(), sender_worker_cores.begin(), sender_worker_cores.end());
             } else {
                 sender_worker_cores = corerange_to_cores(sender_workers, std::nullopt, true);
                 receiver_worker_cores = corerange_to_cores(receiver_workers, std::nullopt, true);
@@ -608,18 +607,15 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
                 std::vector<ccl::WorkerXY> sender_worker_coords;
                 std::vector<ccl::WorkerXY> receiver_worker_coords;
                 for (uint32_t w = b * num_workers_per_eth_buffer; w < (b + 1) * num_workers_per_eth_buffer; ++w) {
-                    if (merge_receiver_and_sender_workers) {
-                    } else {
-                        sender_worker_coords.push_back(
-                            ccl::WorkerXY(
-                                device->worker_core_from_logical_core(sender_worker_cores.at(w)).x,
-                                device->worker_core_from_logical_core(sender_worker_cores.at(w)).y));
-                        receiver_worker_coords.push_back(
-                            ccl::WorkerXY(
-                                device->worker_core_from_logical_core(receiver_worker_cores.at(w)).x,
-                                device->worker_core_from_logical_core(receiver_worker_cores.at(w)).y));
-                        }
-                    }
+                    sender_worker_coords.push_back(
+                        ccl::WorkerXY(
+                            device->worker_core_from_logical_core(sender_worker_cores.at(w)).x,
+                            device->worker_core_from_logical_core(sender_worker_cores.at(w)).y));
+                    receiver_worker_coords.push_back(
+                        ccl::WorkerXY(
+                            device->worker_core_from_logical_core(receiver_worker_cores.at(w)).x,
+                            device->worker_core_from_logical_core(receiver_worker_cores.at(w)).y));
+                }
 
                 bool sender_enabled = (!is_linear || !is_last_chip_in_chain);
                 if (sender_enabled) {
@@ -671,9 +667,8 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
                     if constexpr (merge_receiver_and_sender_workers) {
                         CoreCoord const& worker_eth_sender_core = is_clockwise_direction ? eth_sender_cores.at(i) : eth_receiver_cores.at(i);
                         CoreCoord const& worker_eth_receiver_core = is_clockwise_direction ? eth_receiver_cores.at(i) : eth_sender_cores.at(i);
-                        TT_ASSERT(false);
+
                         auto build_sender_worker_rt_args = [&]() {
-                            TT_ASSERT(false);
                             std::vector<uint32_t> args = {
                                 static_cast<uint32_t>(output_buffer->address()),// dst_addr
                                 static_cast<uint32_t>(device->ethernet_core_from_logical_core(worker_eth_sender_core).x),// edm_noc_x
@@ -686,10 +681,10 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
                             return args;
                         };
                         auto build_sender_worker_ct_args = [&]() {
-                            TT_ASSERT(false);
                             std::vector<uint32_t> args = {
                                 static_cast<uint32_t>(all_gather_config.is_output_dram()),// dst_is_dram
-                                static_cast<uint32_t>(sender_worker_num_transfers.at(i).at(b)),// num_transfers
+                                // static_cast<uint32_t>(sender_worker_num_transfers.at(i).at(b)),// num_transfers
+                                static_cast<uint32_t>(reader_worker_num_transfers.at(i).at(b)),// num_transfers
                                 static_cast<uint32_t>(num_full_chunks_per_worker.at(b)),// num_full_chunks
                                 static_cast<uint32_t>(output_page_size),// output_page_size
                                 static_cast<uint32_t>(pages_per_eth_l1_buffer.at(b)),// num_pages_per_full_chunk
@@ -731,7 +726,7 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
 
                         tt_metal::SetRuntimeArgs(
                             program,
-                            worker_sender_writer_kernel_id,
+                            sender_worker_kernel_id,
                             sender_worker_cores.at(b),
                             sender_worker_rt_args);
                     } else {
@@ -1142,23 +1137,23 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
                         };
                         auto build_reader_worker_ct_args = [&]() {
                             std::vector<uint32_t> args = {
-                                static_cast<uint32_t>(all_gather_config.is_input_dram()),// constexpr bool src_is_dram
-                                static_cast<uint32_t>(receiver_worker_num_transfers.at(i).at(b)), // constexpr uint32_t num_transfers
-                                static_cast<uint32_t>(num_full_chunks_per_worker.at(b)),// constexpr uint32_t num_full_chunks
-                                static_cast<uint32_t>(input_page_size),// constexpr uint32_t page_size
-                                static_cast<uint32_t>(pages_per_eth_l1_buffer.at(b)),// constexpr uint32_t num_pages_per_full_chunk
-                                static_cast<uint32_t>(rem_pages_per_worker.at(b)),// constexpr uint32_t rem_num_pages
-                                static_cast<uint32_t>(tensor_slicer.input_start_page_idx),// constexpr uint32_t input_start_idx
-                                static_cast<uint32_t>(tensor_slicer.row_idx),// constexpr uint32_t row_start_idx
-                                static_cast<uint32_t>(tensor_slicer.col_idx),// constexpr uint32_t col_start_idx
-                                static_cast<uint32_t>(tensor_slicer.row_offset),// constexpr uint32_t row_offset
-                                static_cast<uint32_t>(tensor_slicer.col_offset),// constexpr uint32_t col_offset
-                                static_cast<uint32_t>(tensor_slicer.num_rows),// constexpr uint32_t num_rows
-                                static_cast<uint32_t>(tensor_slicer.num_cols),// constexpr uint32_t num_cols
-                                static_cast<uint32_t>(ring_index),// constexpr uint32_t input_start_ring_idx
-                                static_cast<uint32_t>(is_clockwise_direction ? 1 : 0),// constexpr bool is_clockwise_direction
-                                static_cast<uint32_t>(cb_num_pages / 2),// constexpr uint32_t half_cb_n_pages
-                                static_cast<uint32_t>(ring_size)// constexpr uint32_t ring_size
+                                static_cast<uint32_t>(all_gather_config.is_input_dram()),// src_is_dram
+                                static_cast<uint32_t>(receiver_worker_num_transfers.at(i).at(b)), // num_transfers
+                                static_cast<uint32_t>(num_full_chunks_per_worker.at(b)),// num_full_chunks
+                                static_cast<uint32_t>(input_page_size),// page_size
+                                static_cast<uint32_t>(pages_per_eth_l1_buffer.at(b)),// num_pages_per_full_chunk
+                                static_cast<uint32_t>(rem_pages_per_worker.at(b)),// rem_num_pages
+                                static_cast<uint32_t>(tensor_slicer.input_start_page_idx),// input_start_idx
+                                static_cast<uint32_t>(tensor_slicer.row_idx),// row_start_idx
+                                static_cast<uint32_t>(tensor_slicer.col_idx),// col_start_idx
+                                static_cast<uint32_t>(tensor_slicer.row_offset),// row_offset
+                                static_cast<uint32_t>(tensor_slicer.col_offset),// col_offset
+                                static_cast<uint32_t>(tensor_slicer.num_rows),// num_rows
+                                static_cast<uint32_t>(tensor_slicer.num_cols),// num_cols
+                                static_cast<uint32_t>(ring_index),// input_start_ring_idx
+                                static_cast<uint32_t>(is_clockwise_direction ? 1 : 0),// is_clockwise_direction
+                                static_cast<uint32_t>(cb_num_pages / 2),// half_cb_n_pages
+                                static_cast<uint32_t>(ring_size)// ring_size
                             };
 
                             return args;
@@ -1174,7 +1169,7 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
                             program,
                             reader_kernel_path,
                             receiver_worker_cores.at(b),
-                            tt_metal::WriterDataMovementConfig(reader_worker_ct_args, worker_defines));
+                            tt_metal::ReaderDataMovementConfig(reader_worker_ct_args, worker_defines));
 
                         reader_worker_kernels.push_back(reader_worker_kernel_id);
 
@@ -1504,6 +1499,7 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
                                                 worker_writer_receiver_kernels,
                                                 reader_worker_kernels,
                                                 sender_worker_kernels,
+                                                all_worker_cores,
                                                 all_worker_sender_cores,
                                                 all_worker_receiver_cores](
                                                    const void* operation,
@@ -1549,6 +1545,8 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
                 if constexpr (merge_receiver_and_sender_workers) {
                     auto &reader_worker_runtime_args = GetRuntimeArgs(program, reader_worker_kernels.at(i), all_worker_cores.at(i));
                     auto &sender_worker_runtime_args = GetRuntimeArgs(program, sender_worker_kernels.at(i), all_worker_cores.at(i));
+                    reader_worker_runtime_args[0] = input.buffer()->address();
+                    sender_worker_runtime_args[0] = output.buffer()->address();
                     TT_ASSERT(false, "Unimplemented");
 
                 } else {

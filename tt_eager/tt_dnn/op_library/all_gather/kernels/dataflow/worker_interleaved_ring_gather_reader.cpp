@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include "dataflow_api.h"
+#include "debug/dprint.h"
 #include "tt_eager/tt_dnn/op_library/all_gather/kernels/dataflow/worker_ring_gather_utils.hpp"
 
 template <typename INTERLEAVED_ADDR_GEN_T>
@@ -67,7 +68,7 @@ void kernel_main() {
     const uint32_t eth_receiver_noc_x = get_arg_val<uint32_t>(2);
     const uint32_t eth_receiver_noc_y = get_arg_val<uint32_t>(3);
     const uint32_t eth_receiver_l1_semaphore_addr = get_arg_val<uint32_t>(4);
-    const uint32_t receiver_read_sem_addr = get_arg_val<uint32_t>(5);
+    volatile uint32_t* reader_local_sem_addr_ptr = reinterpret_cast<volatile uint32_t*>(get_arg_val<uint32_t>(5));
 
     constexpr bool src_is_dram = get_compile_time_arg_val(0) == 1;
     constexpr uint32_t num_transfers = get_compile_time_arg_val(1);
@@ -88,8 +89,11 @@ void kernel_main() {
     constexpr uint32_t ring_size = get_compile_time_arg_val(16);
     static_assert(half_cb_n_pages > rem_num_pages, "half_cb_n_pages must be greater than or equal to rem_num_pages");
 
+    DPRINT << "RD num_Transfers: " << num_transfers << ", num_full_chunks: " << num_full_chunks << ", rem_num_pages: " << rem_num_pages << "\n";
 
     constexpr uint32_t cb_id_in0 = tt::CB::c_in0;
+    uint64_t eth_receiver_semaphore_addr = get_noc_addr(eth_receiver_noc_x, eth_receiver_noc_y, eth_receiver_l1_semaphore_addr);
+    uint64_t eth_receiver_l1_base_noc_addr = get_noc_addr(eth_receiver_noc_x, eth_receiver_noc_y, eth_receiver_l1_base_addr);
 
     #ifdef RM_INTERLEAVED
     const InterleavedAddrGen<src_is_dram> s = {
@@ -103,17 +107,15 @@ void kernel_main() {
         .data_format = in0_df
     };
     #endif
-    volatile tt_l1_ptr uint32_t* sender_semaphore_addr_ptr = reinterpret_cast<volatile tt_l1_ptr uint32_t*>(sem_addr);
 
     uint32_t input_ring_idx = input_start_ring_idx;
     uint32_t input_page_idx = input_start_idx;
-    // uint32_t output_base_page_idx = output_start_idx;
-    uint32_t output_page_idx = output_base_page_idx;
     uint32_t col_idx = col_start_idx;
     uint32_t row_idx = row_start_idx;
 
     uint32_t total_num_pages = num_full_chunks * num_pages_per_full_chunk + rem_num_pages;
     uint32_t sem_idx = 1;
+
 
     for (uint32_t i = 0; i < total_num_pages; i += num_pages_per_full_chunk) {
 
@@ -121,24 +123,32 @@ void kernel_main() {
         uint32_t num_filler_pages = num_pages_per_full_chunk - num_pages_to_forward;
         {   // Read from the input tensor
 
+            DPRINT << "RD rcfit " << num_pages_to_forward << "\n";
             read_chunk_from_input_tensor(input_page_idx, cb_id_in0, s, num_pages_to_forward, page_size);
 
             if (num_filler_pages != 0) {
-                push_filler_pages_to_cb(cb_id_in0, half_cb_n_pages - rem_num_pages);
+                DPRINT << "RD push_filler_pages_to_cb " << num_pages_to_forward << "\n";
+                push_filler_pages_to_cb(cb_id_in0, num_filler_pages);
             }
         }
 
         // num_transfers = num_devices - 1
-        for (uint32_t i = 1; i < num_transfers; ++i) {
+        for (uint32_t i = 0; i < num_transfers; ++i) {
 
-            noc_semaphore_wait(receiver_read_semaphore_addr_ptr, 1);
-            noc_semaphore_set(receiver_read_semaphore_addr_ptr, 0);
+            DPRINT << "RD nsw \n";
+            noc_semaphore_wait(reader_local_sem_addr_ptr, 1);
+            noc_semaphore_set(reader_local_sem_addr_ptr, 0);
+            DPRINT << "RD fc \n";
             fetch_chunk(cb_id_in0, num_pages_to_forward, page_size, eth_receiver_l1_base_noc_addr);
-            noc_semaphore_inc(eth_receiver_l1_semaphore_noc_addr, 1);
+            noc_semaphore_inc(eth_receiver_semaphore_addr, 1);
 
             if (num_filler_pages != 0) {
-                push_filler_pages_to_cb(cb_id_in0, half_cb_n_pages - rem_num_pages);
+                DPRINT << "RD filler pages \n";
+                push_filler_pages_to_cb(cb_id_in0, num_filler_pages);
             }
         }
     }
+
+
+    DPRINT << "RD DONE \n";
 }
