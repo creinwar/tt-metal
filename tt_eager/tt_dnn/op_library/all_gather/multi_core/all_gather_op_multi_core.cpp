@@ -1547,7 +1547,6 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
                     auto &sender_worker_runtime_args = GetRuntimeArgs(program, sender_worker_kernels.at(i), all_worker_cores.at(i));
                     reader_worker_runtime_args[0] = input.buffer()->address();
                     sender_worker_runtime_args[0] = output.buffer()->address();
-                    TT_ASSERT(false, "Unimplemented");
 
                 } else {
                     auto &worker_reader_sender_runtime_args = GetRuntimeArgs(program, worker_reader_sender_kernels.at(i), all_worker_sender_cores.at(i));
