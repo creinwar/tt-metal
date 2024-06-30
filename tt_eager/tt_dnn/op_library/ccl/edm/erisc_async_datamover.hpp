@@ -222,7 +222,7 @@ class ChannelBuffer final {
     [[nodiscard]] FORCE_INLINE bool is_done() const { return this->state == STATE::DONE; }
 
     [[nodiscard]] FORCE_INLINE uint32_t get_eth_transaction_channel() const {
-        ASSERT(this->eth_transaction_channel < eth_l1_mem::address_map::MAX_NUM_CONCURRENT_TRANSACTIONS);
+        // ASSERT(this->eth_transaction_channel < eth_l1_mem::address_map::MAX_NUM_CONCURRENT_TRANSACTIONS);
         return this->eth_transaction_channel;
     }
     [[nodiscard]] FORCE_INLINE std::size_t get_remote_eth_buffer_address() const { return this->address; }
@@ -386,6 +386,11 @@ FORCE_INLINE void eth_setup_handshake_second_half(std::uint32_t handshake_regist
 }
 
 template <typename EDM_CONFIG>
+FORCE_INLINE bool state_has_no_dependence_on_eth(ChannelBuffer<EDM_CONFIG> const& channel) {
+    return channel.get_state() == ChannelBuffer<EDM_CONFIG>::SENDER_WAITING_FOR_WORKER || channel.get_state() == ChannelBuffer<EDM_CONFIG>::RECEIVER_WAITING_FOR_WORKER;
+}
+
+template <typename EDM_CONFIG>
 FORCE_INLINE bool channel_can_make_progress(ChannelBuffer<EDM_CONFIG> const &edm_channel) {
     switch (edm_channel.get_state()) {
         case ChannelBuffer<EDM_CONFIG>::STATE::SENDER_READY_FOR_ETH_TRANSFER:
@@ -427,20 +432,21 @@ FORCE_INLINE void eth_setup_handshake(std::uint32_t handshake_register_address, 
     // reinterpret_cast<volatile tt_l1_ptr uint32_t *>(handshake_register_address)[10] = 0x4c0ffee1;
     // reinterpret_cast<volatile tt_l1_ptr uint32_t *>(handshake_register_address)[11] = 0x5c0ffee2;
 
-    erisc_info->channels[0].receiver_ack = 0;
+    // erisc_info->channels[0].receiver_ack = 0;
     for (uint32_t i = 1; i < eth_l1_mem::address_map::MAX_NUM_CONCURRENT_TRANSACTIONS; i++) {
         erisc_info->channels[i].bytes_sent = 0;
         erisc_info->channels[i].receiver_ack = 0;
     }
     *(volatile tt_l1_ptr uint32_t *)handshake_register_address = 0;
-    if (is_sender) {
-        eth_wait_receiver_done();
-        eth_send_bytes(handshake_register_address, handshake_register_address, 16);
-        eth_wait_for_receiver_done();
-    } else {
-        eth_wait_for_bytes(16);
-        eth_receiver_channel_done(0);
-    }
+    eth_send_bytes((uint32_t)&(reinterpret_cast<volatile tt_l1_ptr uint32_t *>(handshake_register_address)[4]), (uint32_t)&(erisc_info->channels[0]), 16);
+    while (!eth_is_receiver_channel_send_acked(0));
+    // if (is_sender) {
+    //     eth_wait_receiver_done();
+    //     eth_wait_for_receiver_done();
+    // } else {
+    //     eth_wait_for_bytes(16);
+    //     eth_receiver_channel_done(0);
+    // }
 }
 
 template <uint32_t NUM_CHANNELS>
