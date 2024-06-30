@@ -135,8 +135,10 @@ class ChannelBuffer final {
                                  ? STATE::SENDER_WAITING_FOR_WORKER
                                  : STATE::SENDER_WAITING_FOR_WORKER
             : TERMINATION_MODE == tt::tt_metal::ccl::EriscDataMoverTerminationMode::WORKER_INITIATED
-                ? STATE::RECEIVER_WAITING_FOR_ETH
-                : STATE::RECEIVER_WAITING_FOR_ETH),
+                ? STATE::RECEIVER_SIGNALING_WORKER
+                : STATE::RECEIVER_SIGNALING_WORKER),
+                // ? STATE::RECEIVER_WAITING_FOR_ETH
+                // : STATE::RECEIVER_WAITING_FOR_ETH),
         is_sender_completion_pending(false),
         is_sender_side(is_sender_side) {
         clear_local_semaphore();
@@ -400,11 +402,13 @@ FORCE_INLINE bool channel_can_make_progress(ChannelBuffer<EDM_CONFIG> const &edm
             return edm_channel.is_local_semaphore_full();
             // return edm_channel.is_local_semaphore_full();
 
-        case ChannelBuffer<EDM_CONFIG>::STATE::RECEIVER_WAITING_FOR_ETH:
+        // case ChannelBuffer<EDM_CONFIG>::STATE::RECEIVER_WAITING_FOR_ETH:
+        case ChannelBuffer<EDM_CONFIG>::STATE::RECEIVER_SIGNALING_WORKER:
             // checked condition
             return edm_channel.eth_bytes_are_available_on_channel();
             // checked condition
-        case ChannelBuffer<EDM_CONFIG>::STATE::RECEIVER_SIGNALING_WORKER: return true;
+        // case ChannelBuffer<EDM_CONFIG>::STATE::RECEIVER_SIGNALING_WORKER: return true;
+        case ChannelBuffer<EDM_CONFIG>::STATE::RECEIVER_WAITING_FOR_ETH: return true;
             default :
                 // DPRINT << "ERR S \n";// << (uint32_t)sender_channel.get_state() << "\n";
                 return false;
@@ -725,7 +729,8 @@ FORCE_INLINE bool receiver_eth_notify_workers_payload_available_sequence_v2(Chan
 
     buffer_channel.clear_local_semaphore();
     buffer_channel.increment_worker_semaphores();
-    buffer_channel.goto_state(ChannelBuffer<EDM_CONFIG>::RECEIVER_WAITING_FOR_WORKER);
+    // buffer_channel.goto_state(ChannelBuffer<EDM_CONFIG>::RECEIVER_WAITING_FOR_WORKER);
+    buffer_channel.goto_state(ChannelBuffer<EDM_CONFIG>::RECEIVER_WAITING_FOR_ETH);
 
     return true;
 }
@@ -741,10 +746,11 @@ FORCE_INLINE void receiver_eth_accept_payload_sequence_v2(
     uint32_t eth_transaction_ack_word_addr) {
 
     buffer_channel.eth_receiver_channel_ack(eth_transaction_ack_word_addr);
-    buffer_channel.goto_state(ChannelBuffer<EDM_CONFIG>::RECEIVER_SIGNALING_WORKER);
+    // buffer_channel.goto_state(ChannelBuffer<EDM_CONFIG>::RECEIVER_SIGNALING_WORKER);
+    buffer_channel.goto_state(ChannelBuffer<EDM_CONFIG>::RECEIVER_WAITING_FOR_WORKER);
     // Can call unconditionally since we are only notifying the workers and that doesn't
     // require any further checks
-    receiver_eth_notify_workers_payload_available_sequence_v2(buffer_channel);
+    // receiver_eth_notify_workers_payload_available_sequence_v2(buffer_channel);
 }
 
 template <typename EDM_CONFIG>
@@ -811,7 +817,8 @@ FORCE_INLINE void receiver_noc_read_worker_completion_check_sequence_v2(
         }
 
         if (!channel_done) {
-            buffer_channel.goto_state(ChannelBuffer<EDM_CONFIG>::RECEIVER_WAITING_FOR_ETH);
+            // buffer_channel.goto_state(ChannelBuffer<EDM_CONFIG>::RECEIVER_WAITING_FOR_ETH);
+            buffer_channel.goto_state(ChannelBuffer<EDM_CONFIG>::RECEIVER_SIGNALING_WORKER);
         } else {
             buffer_channel.goto_state(ChannelBuffer<EDM_CONFIG>::DONE);
             num_receivers_complete++;
