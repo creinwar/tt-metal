@@ -575,6 +575,7 @@ void EnqueueProgramCommand::assemble_device_commands() {
     if (!program.loaded_onto_device) {
         // Calculate size of command and fill program indices of data to update
         // TODO: Would be nice if we could pull this out of program
+        std::cout << "program not loaded onto device" << std::endl;
         uint32_t cmd_sequence_sizeB = 0;
 
         for (const auto& [dst, transfer_info_vec] : program.program_transfer_info.multicast_semaphores) {
@@ -598,6 +599,8 @@ void EnqueueProgramCommand::assemble_device_commands() {
             cmd_sequence_sizeB += align(sizeof(CQPrefetchCmd) + mcast_payload_sizeB, PCIE_ALIGNMENT);
         }
 
+        std::cout << "cmd seq size after sems " << cmd_sequence_sizeB << std::endl;
+
         for (const auto& [dst, transfer_info_vec] : program.program_transfer_info.unicast_semaphores) {
             uint32_t num_packed_cmds = 0;
             uint32_t write_packed_len = transfer_info_vec[0].data.size();
@@ -618,6 +621,8 @@ void EnqueueProgramCommand::assemble_device_commands() {
             uint32_t ucast_payload_sizeB = dispatch_cmd_sizeB + aligned_semaphore_data_sizeB;
             cmd_sequence_sizeB += align(sizeof(CQPrefetchCmd) + ucast_payload_sizeB, PCIE_ALIGNMENT);
         }
+
+        std::cout << "cmd seq size after sems pt 2 " << cmd_sequence_sizeB << std::endl;
 
         const auto& circular_buffers_unique_coreranges = program.circular_buffers_unique_coreranges();
         const uint16_t num_multicast_cb_sub_cmds = circular_buffers_unique_coreranges.size();
@@ -685,6 +690,8 @@ void EnqueueProgramCommand::assemble_device_commands() {
             mcast_cb_payload_sizeB = dispatch_cmd_sizeB + aligned_cb_config_data_sizeB;
             cmd_sequence_sizeB += align(sizeof(CQPrefetchCmd) + mcast_cb_payload_sizeB, PCIE_ALIGNMENT);
         }
+
+        std::cout << "cmd seq size after cbs " << cmd_sequence_sizeB << std::endl;
 
         // Program Binaries and Go Signals
         // Get launch msg data while getting size of cmds
@@ -794,7 +801,7 @@ void EnqueueProgramCommand::assemble_device_commands() {
         }
         for (uint32_t i = 0; i < kernel_bins_dispatch_subcmds.size(); ++i) {
             cmd_sequence_sizeB += align(
-                CQ_PREFETCH_CMD_BARE_MIN_SIZE +
+                (sizeof(CQPrefetchCmd) + sizeof(CQDispatchCmd)) +
                     kernel_bins_dispatch_subcmds[i].size() * sizeof(CQDispatchWritePackedLargeSubCmd),
                 PCIE_ALIGNMENT);
             cmd_sequence_sizeB += align(
@@ -803,10 +810,14 @@ void EnqueueProgramCommand::assemble_device_commands() {
                 PCIE_ALIGNMENT);
         }
 
+        std::cout << "cmd seq size after kernel bins " << cmd_sequence_sizeB << std::endl;
+
         // Wait Cmd
         if (program.program_transfer_info.num_active_cores > 0) {
             cmd_sequence_sizeB += CQ_PREFETCH_CMD_BARE_MIN_SIZE;
         }
+
+        std::cout << "cmd seq size after wait cmd " << cmd_sequence_sizeB << std::endl;
 
         std::vector<std::pair<const void*, uint32_t>> multicast_go_signal_data;
         std::vector<std::pair<const void*, uint32_t>> unicast_go_signal_data;
@@ -839,6 +850,8 @@ void EnqueueProgramCommand::assemble_device_commands() {
             cmd_sequence_sizeB += align(sizeof(CQPrefetchCmd) + mcast_payload_sizeB, PCIE_ALIGNMENT);
         }
 
+        std::cout << "cmd seq size after go cmd " << cmd_sequence_sizeB << std::endl;
+
         for (KernelGroup& kernel_group : program.get_kernel_groups(CoreType::ETH)) {
             kernel_group.launch_msg.mode = DISPATCH_MODE_DEV;
             const void* launch_message_data = (const void*)(&kernel_group.launch_msg);
@@ -863,6 +876,8 @@ void EnqueueProgramCommand::assemble_device_commands() {
             uint32_t ucast_payload_sizeB = dispatch_cmd_sizeB + aligned_go_signal_data_sizeB;
             cmd_sequence_sizeB += align(sizeof(CQPrefetchCmd) + ucast_payload_sizeB, PCIE_ALIGNMENT);
         }
+
+        std::cout << "cmd seq size after go cmd 2 " << cmd_sequence_sizeB << std::endl;
 
         cached_program_command_sequence.program_command_sequence = HostMemDeviceCommand(cmd_sequence_sizeB);
 
@@ -963,6 +978,7 @@ void EnqueueProgramCommand::assemble_device_commands() {
 
         // Go Signals
         if (multicast_go_signal_sub_cmds.size() > 0) {
+            std::cout << "go signals" << std::endl;
             uint32_t num_multicast_sub_cmds = multicast_go_signal_sub_cmds.size();
             uint32_t aligned_go_signal_data_sizeB = align(sizeof(launch_msg_t), L1_ALIGNMENT) * num_multicast_sub_cmds;
             uint32_t dispatch_cmd_sizeB = align(
@@ -985,6 +1001,7 @@ void EnqueueProgramCommand::assemble_device_commands() {
                 sizeof(CQDispatchCmd) + num_unicast_sub_cmds * sizeof(CQDispatchWritePackedUnicastSubCmd),
                 L1_ALIGNMENT);
             uint32_t ucast_payload_sizeB = dispatch_cmd_sizeB + aligned_go_signal_data_sizeB;
+            std::cout << "here" << std::endl;
             program_command_sequence.add_dispatch_write_packed<CQDispatchWritePackedUnicastSubCmd>(
                 num_unicast_sub_cmds,
                 GET_ETH_MAILBOX_ADDRESS_HOST(launch),
@@ -1071,6 +1088,10 @@ void EnqueueProgramCommand::process() {
         this->manager.issue_queue_push_back(total_fetch_size_bytes, this->command_queue_id);
 
         // One fetch queue entry for entire program
+        std::cout << "total_fetch_size_bytes " << total_fetch_size_bytes
+                  << " preamble_fetch_size_bytes " << preamble_fetch_size_bytes
+                  << " runtime_args_fetch_size_bytes " << runtime_args_fetch_size_bytes
+                  << " program_fetch_size_bytes " << program_fetch_size_bytes << std::endl;
         this->manager.fetch_queue_reserve_back(this->command_queue_id);
         this->manager.fetch_queue_write(total_fetch_size_bytes, this->command_queue_id);
     } else {
@@ -1736,6 +1757,7 @@ void HWCommandQueue::enqueue_program(Program& program, bool blocking) {
         TT_FATAL(!this->manager.get_bypass_mode(), "Tracing should only be used when programs have been cached");
         TT_ASSERT(program.program_transfer_info.kernel_bins.size() == program.kg_buffers.size());
         for (int buffer_idx = 0; buffer_idx < program.program_transfer_info.kernel_bins.size(); buffer_idx++) {
+            tt::log_info(tt::LogDispatch, "EnqueueWriteBuffer for Program");
             this->enqueue_write_buffer(
                 *program.kg_buffers[buffer_idx],
                 program.program_transfer_info.kernel_bins[buffer_idx].data.data(),
