@@ -450,8 +450,8 @@ def fused_partial_layernorm(
         assert seq_len % slice_size == 0, "Sequence length must be divisible by layernorm slice size {slice_size}"
         num_slices = seq_len // slice_size  # we do 128 per iteration (slice), then we concat the result.
 
-        out_tensor_1 = out_tensor_1[self.model_config["SEQ_LEN"]]
-        out_tensor_2 = out_tensor_2[self.model_config["SEQ_LEN"]]
+        out_tensor_1 = out_tensor_1[seq_len]
+        out_tensor_2 = out_tensor_2[seq_len]
 
         for slice_i in range(num_slices):
             xs_slice = ttnn.experimental.tensor.interleaved_to_sharded_partial(
@@ -532,8 +532,8 @@ def fused_partial_layernorm(
             program_config=pgmconfig,
         )
         xs_output2 = ttnn.experimental.tensor.sharded_to_interleaved(
-                xs_output2, output_mem_config=interleaved_l1_memcfg
-            )
+            xs_output2, output_mem_config=interleaved_l1_memcfg
+        )
 
         # Apply first layernorm gamma+beta
         xs_output1 = ttnn.experimental.tensor.bcast(
