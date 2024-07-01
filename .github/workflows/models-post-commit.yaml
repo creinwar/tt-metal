@@ -56,9 +56,11 @@ jobs:
             -v /dev/hugepages-1G:/dev/hugepages-1G
           run_args: |
             source ${{ github.workspace }}/python_env/bin/activate
+            cd $TT_METAL_HOME
+            export PYTHONPATH=$TT_METAL_HOME
             ${{ matrix.test-group.cmd }}
-      # - uses: ./.github/actions/slack-report
-      #   if: ${{ failure() }}
-      #   with:
-      #     slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
-      #     owner: U0593J2RQRZ # Bill Teng
+      - uses: ./.github/actions/slack-report
+        if: ${{ failure() }}
+        with:
+          slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          owner: U0593J2RQRZ # Bill Teng

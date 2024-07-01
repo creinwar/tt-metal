@@ -48,6 +48,7 @@ jobs:
       - name: Set up dynamic env vars for build
         run: |
           echo "TT_METAL_HOME=$(pwd)" >> $GITHUB_ENV
+          echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
       - uses: actions/download-artifact@v4
         with:
           name: TTMetal_build_${{ matrix.runner-info.arch }}
@@ -66,117 +67,17 @@ jobs:
             -e LOGURU_LEVEL=${{ env.LOGURU_LEVEL }}
             -e LD_LIBRARY_PATH=${{ env.LD_LIBRARY_PATH }}
             -e TT_METAL_ENV=${{ env.TT_METAL_ENV }}
+            -e PYTHONPATH=${{ env.PYTHONPATH }}
             -v /dev/hugepages-1G:/dev/hugepages-1G
             --device /dev/tenstorrent
           run_args: |
             source ${{ github.workspace }}/python_env/bin/activate
+            cd $TT_METAL_HOME
+            export PYTHONPATH=$TT_METAL_HOME
             ${{ matrix.test-group.cmd }}
             
-      # - uses: ./.github/actions/slack-report
-      #   if: ${{ failure() }}
-      #   with:
-      #     slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
-      #     owner: U0593J2RQRZ # Bill Teng
-          
-  build-docs:
-    strategy:
-      # Do not fail-fast because we need to ensure all tests go to completion
-      # so we try not to get hanging machines
-      fail-fast: false
-      matrix:
-        runner-info: [
-          # E150
-          {arch: grayskull, runs-on: ["grayskull"]},
-          # N150
-          {arch: wormhole_b0, runs-on: ["wormhole_b0", "multi-chip-num-pcie-1", "multi-chip-num-chips-1"]},
-          # N300
-          {arch: wormhole_b0, runs-on: ["wormhole_b0", "multi-chip-num-pcie-1", "multi-chip-num-chips-2"]},
-        ]
-    env:
-      TT_METAL_ENV: ${{ vars.TT_METAL_ENV }}
-      ARCH_NAME: ${{ matrix.runner-info.arch }}
-      LOGURU_LEVEL: INFO
-      LD_LIBRARY_PATH: ${{ github.workspace }}/build/lib
-    runs-on: ${{ matrix.runner-info.runs-on }}
-    steps:
-      - uses: tenstorrent-metal/metal-workflows/.github/actions/checkout-with-submodule-lfs@v2.0.0
-      - name: Set up dynamic env vars for build
-        run: |
-          echo "TT_METAL_HOME=$(pwd)" >> $GITHUB_ENV
-      - uses: actions/download-artifact@v4
+      - uses: ./.github/actions/slack-report
+        if: ${{ failure() }}
         with:
-          name: TTMetal_build_${{ matrix.runner-info.arch }}
-      - name: Extract files
-        run: tar -xvf ttm_${{ matrix.runner-info.arch }}.tar
-      - uses: ./.github/actions/install-python-deps
-      - name: Build Docs
-        timeout-minutes: 15
-        uses: ./.github/actions/docker-run
-        with:
-          docker_username: ${{ github.actor }}
-          docker_password: ${{ secrets.GITHUB_TOKEN }}
-          docker_opts: |
-            -e CONFIG=${{ env.CONFIG }} 
-            -e ARCH_NAME=${{ matrix.runner-info.arch }}
-            -e LOGURU_LEVEL=${{ env.LOGURU_LEVEL }}
-            -e LD_LIBRARY_PATH=${{ env.LD_LIBRARY_PATH }}
-            -e TT_METAL_ENV=${{ env.TT_METAL_ENV }}
-            --device /dev/tenstorrent
-            -v /dev/hugepages-1G:/dev/hugepages-1G
-          run_args: |
-            source ${{ github.workspace }}/python_env/bin/activate
-            ./tests/scripts/run_build_docs.sh
-      # - name: Run pre/post regression tests
-      #   timeout-minutes: 15
-      #   run: |
-      #     ./scripts/docker/run_docker_cmd.sh -- ./tests/scripts/run_build_docs.sh
-
-  multi-queue-single-device-tests:
-    strategy:
-      # Do not fail-fast because we need to ensure all tests go to completion
-      # so we try not to get hanging machines
-      fail-fast: false
-      matrix:
-        runner-info: [
-          # E150
-          {arch: grayskull, runs-on: ["grayskull"], name: E150},
-          # N150
-          {arch: wormhole_b0, runs-on: ["wormhole_b0", "multi-chip-num-pcie-1", "multi-chip-num-chips-1"], name: N150},
-          # N300
-          {arch: wormhole_b0, runs-on: ["wormhole_b0", "multi-chip-num-pcie-1", "multi-chip-num-chips-2"], name: N300},
-        ]
-    env:
-      TT_METAL_ENV: ${{ vars.TT_METAL_ENV }}
-      ARCH_NAME: ${{ matrix.runner-info.arch }}
-      LOGURU_LEVEL: INFO
-      LD_LIBRARY_PATH: ${{ github.workspace }}/build/lib
-    runs-on: ${{ matrix.runner-info.runs-on }}
-    steps:
-      - uses: tenstorrent-metal/metal-workflows/.github/actions/checkout-with-submodule-lfs@v2.0.0
-      - name: Set up dyanmic env vars for build
-        run: |
-          echo "TT_METAL_HOME=$(pwd)" >> $GITHUB_ENV
-      - uses: actions/download-artifact@v4
-        with:
-          name: TTMetal_build_${{ matrix.runner-info.arch }}
-      - name: Extract files
-        run: tar -xvf ttm_${{ matrix.runner-info.arch }}.tar
-      - uses: ./.github/actions/install-python-deps
-      - name: Run multi-queue-single-device
-        timeout-minutes: 45
-        uses: ./.github/actions/docker-run
-        with:
-          docker_username: ${{ github.actor }}
-          docker_password: ${{ secrets.GITHUB_TOKEN }}
-          docker_opts: |
-            -e CONFIG=${{ env.CONFIG }} 
-            -e ARCH_NAME=${{ matrix.runner-info.arch }}
-            -e LOGURU_LEVEL=${{ env.LOGURU_LEVEL }}
-            -e LD_LIBRARY_PATH=${{ env.LD_LIBRARY_PATH }}
-            -e TT_METAL_ENV=${{ env.TT_METAL_ENV }}
-            --device /dev/tenstorrent
-            -v /dev/hugepages-1G:/dev/hugepages-1G
-          run_args: |
-            source ${{ github.workspace }}/python_env/bin/activate
-            ./tests/scripts/run_tests.sh --tt-arch $ARCH_NAME --pipeline-type post_commit --dispatch-mode fast-multi-queue-single-device
-      
+          slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          owner: U0593J2RQRZ # Bill Teng
