@@ -6,7 +6,8 @@
 
 #include "ttnn/decorators.hpp"
 #include "ttnn/operations/core.hpp"
-#include "tt_eager/tt_dnn/op_library/eltwise_unary/eltwise_unary_op.hpp"
+#include "ttnn/operations/eltwise/unary/unary.hpp"
+#include "ttnn/operations/eltwise/unary/device/unary_op.hpp"
 
 namespace ttnn {
 namespace operations {
@@ -55,8 +56,8 @@ struct Typecast {
                                 output_dtype == DataType::FLOAT32 or
                                 input_dtype == DataType::UINT32 or
                                 input_dtype == DataType::INT32;
-        auto unary_op = UnaryWithParam{UnaryOpType::TYPECAST, {static_cast<float>(input_dtype), static_cast<float>(output_dtype)}};
-        auto eltwise_op = EltwiseUnary{{unary_op}, memory_config, fp32_dest_acc_en, preserve_fp32_precision, output_dtype};
+        auto unary_op = ttnn::operations::unary::UnaryWithParam{ttnn::operations::unary::UnaryOpType::TYPECAST, {static_cast<float>(input_dtype), static_cast<float>(output_dtype)}};
+        auto eltwise_op = ttnn::operations::unary::Unary{{unary_op}, memory_config, fp32_dest_acc_en, preserve_fp32_precision, output_dtype};
         return operation::run(eltwise_op, {input}, {}, {optional_output_tensor}, queue_id).at(0);
     }
 
@@ -73,6 +74,24 @@ struct Typecast {
 
         constexpr uint8_t DefaultQueueId = 0;
         return execute_on_worker_thread(DefaultQueueId, input, output_dtype, memory_config_arg, optional_output_tensor);
+    }
+
+    // TODO: implement tt_input_dtype tt_output_dtype as DataType
+    static Tensor execute_on_worker_thread(
+        const Tensor& input_tensor,
+        uint32_t tt_input_dtype,
+        uint32_t tt_output_dtype,
+        const std::optional<MemoryConfig>& memory_config = operation::DEFAULT_OUTPUT_MEMORY_CONFIG,
+        const std::optional<Tensor>& optional_output_tensor = std::nullopt,
+        uint8_t queue_id = 0) {
+        TT_ASSERT(input_tensor.device()->arch() != tt::ARCH::GRAYSKULL, "eltwise_typecast is not currently supported on Grayskull");
+
+        constexpr uint8_t DefaultQueueId = 0;
+        return ttnn::operations::unary::detail::execute_on_worker_thread(
+            queue_id,
+            input_tensor,
+            {ttnn::operations::unary::UnaryWithParam(ttnn::operations::unary::UnaryOpType::TYPECAST, {static_cast<float>(tt_input_dtype), static_cast<float>(tt_output_dtype)})},
+            memory_config, optional_output_tensor);
     }
 };
 }  // namespace copy
