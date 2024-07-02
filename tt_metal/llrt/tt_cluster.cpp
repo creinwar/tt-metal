@@ -51,6 +51,12 @@ Cluster::Cluster() {
 
 void Cluster::detect_arch_and_target() {
 #ifdef TT_METAL_VERSIM_DISABLED
+#ifdef TT_METAL_SIMULATOR_EN
+    this->target_type_ = TargetDevice::VCS;
+    auto arch_env = getenv("ARCH_NAME");
+    TT_FATAL(arch_env, "ARCH_NAME env var needed for VCS");
+    this->arch_ = tt::get_arch_from_string(arch_env);
+#else
     this->target_type_ = TargetDevice::Silicon;
     std::vector<chip_id_t> physical_mmio_device_ids = tt_SiliconDevice::detect_available_device_ids();
     this->arch_ = detect_arch(physical_mmio_device_ids.at(0));
@@ -64,6 +70,7 @@ void Cluster::detect_arch_and_target() {
             device_id,
             get_arch_str(detected_arch));
     }
+#endif
 #else
     this->target_type_ = TargetDevice::Versim;
     auto arch_env = getenv("ARCH_NAME");
@@ -90,7 +97,7 @@ void Cluster::detect_arch_and_target() {
         get_string(this->arch_));
 #endif
 
-    TT_FATAL(this->target_type_ == TargetDevice::Versim or this->target_type_ == TargetDevice::Silicon);
+    TT_FATAL(this->target_type_ == TargetDevice::Versim or this->target_type_ == TargetDevice::Silicon or this->target_type_ == TargetDevice::VCS);
 }
 
 std::filesystem::path get_cluster_desc_yaml() {
@@ -156,7 +163,7 @@ void Cluster::generate_cluster_descriptor() {
     }
 
     // Use cluster descriptor to map MMIO device id to all devices on the same card (including the MMIO device)
-    if (this->target_type_ == TargetDevice::Versim) {
+    if (this->target_type_ == TargetDevice::Versim || this->target_type_ == TargetDevice::VCS) {
         std::set<chip_id_t> dummy_versim_card = {0};
         this->devices_grouped_by_assoc_mmio_device_[0] = dummy_versim_card;
         this->device_to_mmio_device_[0] = 0;
@@ -273,6 +280,8 @@ void Cluster::open_driver(
         TT_FATAL(device_driver->get_target_mmio_device_ids().size() == 1);
     } else if (this->target_type_ == TargetDevice::Versim) {
         device_driver = std::make_unique<tt_VersimDevice>(sdesc_path, this->cluster_desc_path_);
+    } else if (this->target_type_ == TargetDevice::VCS) {
+        device_driver = std::make_unique<tt_SimulationDevice>(sdesc_path, this->cluster_desc_path_);
     }
     device_driver->set_device_dram_address_params(dram_address_params);
     device_driver->set_device_l1_address_params(l1_address_params);
@@ -330,7 +339,7 @@ const metal_SocDescriptor &Cluster::get_soc_desc(chip_id_t chip) const {
 }
 
 uint32_t Cluster::get_harvested_rows(chip_id_t chip) const {
-    if (this->target_type_ == TargetDevice::Versim) {
+    if (this->target_type_ == TargetDevice::Versim || this->target_type_ == TargetDevice::VCS) {
         return 0;
     } else {
         return this->get_driver(chip).harvested_rows_per_target.at(chip);

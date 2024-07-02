@@ -65,6 +65,8 @@ message(STATUS "Build Python bindings: ${WITH_PYTHON_BINDINGS}")
 
 option(ENABLE_CODE_TIMERS "Enable code timers" OFF)
 option(TT_METAL_VERSIM_DISABLED "Disable TT_METAL_VERSIM" ON)
+option(TT_METAL_SIMULATOR_EN "Enable vcs simulator" OFF)
+
 option(ENABLE_TRACY "Enable Tracy Profiling" OFF)
 
 # Default to building everything as a shared lib
@@ -119,9 +121,14 @@ add_library(compiler_flags INTERFACE)
 target_link_libraries(compiler_flags INTERFACE compiler_warnings)
 target_compile_options(compiler_flags INTERFACE -mavx2 -fPIC -DFMT_HEADER_ONLY -fvisibility-inlines-hidden -fno-lto -stdlib=libc++)
 
-if(TT_METAL_VERSIM_DISABLED)
+if(NOT TT_METAL_VERSIM_DISABLED AND TT_METAL_SIMULATOR_EN)
+    message(FATAL_ERROR "Cannot use versim and metal sim at the same time!!.")
+elseif(TT_METAL_VERSIM_DISABLED)
     target_compile_options(compiler_flags INTERFACE -DTT_METAL_VERSIM_DISABLED)
+elseif(TT_METAL_SIMULATOR_EN)
+    target_compile_options(compiler_flags INTERFACE -DTT_METAL_SIMULATOR_EN)
 endif()
+
 if(ENABLE_CODE_TIMERS)
     target_compile_options(compiler_flags INTERFACE -DTT_ENABLE_CODE_TIMERS)
 endif()

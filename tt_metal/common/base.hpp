@@ -46,6 +46,7 @@ enum class TargetDevice : uint8_t
     Versim = 1,
     Silicon = 2,
     Golden = 3,
+    VCS = 4,
     Invalid = 0xFF,
 };
 
