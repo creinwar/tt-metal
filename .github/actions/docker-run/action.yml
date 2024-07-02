@@ -68,7 +68,7 @@ runs:
           -e Python_ROOT_DIR=${{ env.Python_ROOT_DIR }}
           -e Python2_ROOT_DIR=${{ env.Python2_ROOT_DIR }}
           -e Python3_ROOT_DIR=${{ env.Python3_ROOT_DIR }}
-          --privileged
+          --net=host
           -e VIRTUAL_ENV=${{ env.VIRTUAL_ENV }}
           ${{ inputs.docker_opts }}
         run: |
