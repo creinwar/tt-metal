@@ -54,7 +54,7 @@ runs:
         options: |
           -u ${{ env.RUNNER_UID }}:${{ env.RUNNER_GID }}
           -v ${{ github.workspace }}:${{ github.workspace }}
-          -v /home:/home
+          -v /home/ubuntu/.cache:/home/ubuntu/.cache
           -e TT_METAL_HOME=${{ github.workspace }} 
           -e PYTHONPATH=${{ github.workspace }}
           -w ${{ github.workspace }}
