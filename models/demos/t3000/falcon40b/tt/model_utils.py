@@ -421,8 +421,8 @@ def fused_partial_layernorm(
     layernorm_params,
     memconfig,
     pgmconfig,
-    out_tensor_1,
-    out_tensor_2,
+    out_tensor_dict_1,
+    out_tensor_dict_2,
 ):
     # Do partial layernorm by partial sequence length of 128
     # Input xs is [1, 1, seq_len, 8192]
@@ -450,8 +450,8 @@ def fused_partial_layernorm(
         assert seq_len % slice_size == 0, "Sequence length must be divisible by layernorm slice size {slice_size}"
         num_slices = seq_len // slice_size  # we do 128 per iteration (slice), then we concat the result.
 
-        out_tensor_1 = out_tensor_1[seq_len]
-        out_tensor_2 = out_tensor_2[seq_len]
+        out_tensor_1 = out_tensor_dict_1[seq_len]
+        out_tensor_2 = out_tensor_dict_2[seq_len]
 
         for slice_i in range(num_slices):
             xs_slice = ttnn.experimental.tensor.interleaved_to_sharded_partial(
@@ -531,9 +531,6 @@ def fused_partial_layernorm(
             output_mem_config=memconfig,
             program_config=pgmconfig,
         )
-        xs_output2 = ttnn.experimental.tensor.sharded_to_interleaved(
-            xs_output2, output_mem_config=interleaved_l1_memcfg
-        )
 
         # Apply first layernorm gamma+beta
         xs_output1 = ttnn.experimental.tensor.bcast(
@@ -541,14 +538,16 @@ def fused_partial_layernorm(
             ln_gamma_1,
             math_op=ttnn.experimental.tensor.BcastOpMath.MUL,
             dim=ttnn.experimental.tensor.BcastOpDim.H,
+            output_mem_config=memconfig,
         )
         xs_output1 = ttnn.experimental.tensor.bcast(
             xs_output1,
             ln_beta_1,
             math_op=ttnn.experimental.tensor.BcastOpMath.ADD,
             dim=ttnn.experimental.tensor.BcastOpDim.H,
+            output_mem_config=memconfig,
         )
-        xs_output1 = ttnn.experimental.tensor.clone(xs_output1, output_mem_config=dram_memcfg)
+        xs_output1 = ttnn.experimental.tensor.sharded_to_interleaved(xs_output1, output_mem_config=dram_memcfg)
 
         # Apply second layernorm gamma+beta
         xs_output2 = ttnn.experimental.tensor.bcast(
@@ -556,14 +555,17 @@ def fused_partial_layernorm(
             ln_gamma_2,
             math_op=ttnn.experimental.tensor.BcastOpMath.MUL,
             dim=ttnn.experimental.tensor.BcastOpDim.H,
+            output_mem_config=memconfig,
         )
         xs_output2 = ttnn.experimental.tensor.bcast(
             xs_output2,
             ln_beta_2,
             math_op=ttnn.experimental.tensor.BcastOpMath.ADD,
             dim=ttnn.experimental.tensor.BcastOpDim.H,
+            output_mem_config=memconfig,
         )
-        xs_output2 = ttnn.experimental.tensor.clone(xs_output2, output_mem_config=dram_memcfg)
+        xs_output2 = ttnn.experimental.tensor.sharded_to_interleaved(xs_output2, output_mem_config=dram_memcfg)
+
         output1 = xs_output1
         output2 = xs_output2
 
