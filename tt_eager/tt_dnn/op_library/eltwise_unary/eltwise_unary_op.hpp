@@ -589,7 +589,6 @@ constexpr auto isnan = make_eltwise_unary<UnaryOpType::ISNAN>{};
 constexpr auto signbit = make_eltwise_unary<UnaryOpType::SIGNBIT>{};
 constexpr auto floor = make_eltwise_unary<UnaryOpType::FLOOR>{};
 constexpr auto ceil = make_eltwise_unary<UnaryOpType::CEIL>{};
-constexpr auto square = make_eltwise_unary<UnaryOpType::SQUARE>{};
 constexpr auto atan = make_eltwise_unary<UnaryOpType::ATAN>{};
 constexpr auto nez = make_eltwise_unary<UnaryOpType::NEZ>{};
 constexpr auto logical_not_unary = make_eltwise_unary<UnaryOpType::LOGICAL_NOT_UNARY>{};
