@@ -11,6 +11,7 @@
 #include "ttnn/operations/data_movement/pad/pad.hpp"
 #include "tt_dnn/op_library/tilize/tilize_op.hpp"
 #include "tt_dnn/op_library/transpose/transpose_op.hpp"
+#include "tt_dnn/op_library/pad/pad_op.hpp"
 #include "tt_dnn/op_library/unpad/unpad_op.hpp"
 #include "tt_dnn/op_library/untilize/untilize_op.hpp"
 #include "tt_metal/common/constants.hpp"

@@ -5,7 +5,6 @@
 import torch
 import ttnn
 import tt_lib as ttl
-import ttnn
 from functools import partial
 from models.helper_funcs import Linear as tt_Linear
 from models.utility_functions import torch2tt_tensor, tt2torch_tensor, ttl_complex_2_torch_complex
@@ -2376,10 +2375,10 @@ def pad(
     **kwargs,
 ):
     t0 = setup_tt_tensor(x, device, layout[0], input_mem_config[0], dtype[0])
-    t1 = ttl.tensor.pad(
+    t1 = ttnn.pad(
         t0,
-        output_tensor_shape,
-        input_tensor_start,
+        ttnn.Shape(output_tensor_shape),
+        ttnn.Shape(input_tensor_start),
         pad_value,
         output_mem_config=output_mem_config,
     )

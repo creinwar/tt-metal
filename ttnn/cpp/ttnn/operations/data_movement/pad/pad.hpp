@@ -6,7 +6,10 @@
 
 #include "tt_eager/tensor/types.hpp"
 #include "ttnn/cpp/ttnn/operations/core.hpp"
-#include "tt_eager/tt_dnn/op_library/pad/pad_op.hpp"
+
+#include "tt_eager/tt_dnn/op_library/run_operation.hpp"
+
+#include "device/pad_op.hpp"
 
 #include <ranges>
 
@@ -18,7 +21,7 @@ namespace data_movement {
 constexpr uint8_t DefaultQueueId = 0;
 
 
-struct Pad {
+struct ExecutePad {
     static inline const std::array<TensorSchema, 1> input_tensor_schemas() {
         return {ttnn::TensorSchema{
             2,  // min rank
@@ -56,14 +59,8 @@ struct Pad {
         auto memory_config = memory_config_arg.value_or(input_tensor.memory_config());
 
         auto output_tensor = operation::run(
-            tt::tt_metal::Pad{
-                .output_tensor_shape=tt::tt_metal::Shape(output_padded_shape),
-                .input_tensor_start=tt::tt_metal::Shape(input_tensor_start),
-                .pad_value=value,
-                .output_mem_config=memory_config,
-                .use_multicore=true
-            },
-            {input_tensor}).front();
+            Pad{tt::tt_metal::Shape(output_padded_shape), tt::tt_metal::Shape(input_tensor_start), value, memory_config, true},
+            {input_tensor}, {}, {}, queue_id).front();
 
         return output_tensor;
 
@@ -200,6 +197,6 @@ struct Pad {
 }  // namespace data_movement
 }  // namespace operations
 
-constexpr auto pad = ttnn::register_operation<ttnn::operations::data_movement::Pad>("ttnn::pad");
+constexpr auto pad = ttnn::register_operation<ttnn::operations::data_movement::ExecutePad>("ttnn::pad");
 
 }  // namespace ttnn
