@@ -63,6 +63,12 @@ runs:
           -v /etc/shadow:/etc/shadow:ro
           -v /etc/bashrc:/etc/bashrc:ro
           -v /home/ubuntu/actions-runner/_work/_tool/Python/:/home/ubuntu/actions-runner/_work/_tool/Python/
+          -e pythonLocation=${{ env.pythonLocation }}
+          -e PKG_CONFIG_PATH=${{ env.PKG_CONFIG_PATH}}
+          -e Python_ROOT_DIR=${{ env.Python_ROOT_DIR }}
+          -e Python2_ROOT_DIR=${{ env.Python2_ROOT_DIR }}
+          -e Python3_ROOT_DIR=${{ env.Python3_ROOT_DIR }}
+          -e VIRTUAL_ENV=${{ env.VIRTUAL_ENV }}
           ${{ inputs.docker_opts }}
         run: |
           ${{ inputs.run_args }}
