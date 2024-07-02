@@ -134,16 +134,21 @@ def _golden_function(input_tensor: ttnn.Tensor):
 
 
 global_avg_pool2d = ttnn.register_operation(golden_function=_golden_function)(
-    ttnn._ttnn.operations.pool.global_avg_pool2d
+    ttnn._ttnn.operations.avgpool.global_avg_pool2d
 )
 
 max_pool2d = ttnn.register_operation(
     name="ttnn.max_pool2d",
-)(ttnn._ttnn.operations.pool.max_pool2d)
+)(ttnn._ttnn.operations.maxpool.max_pool2d)
+
+
+max_pool2d_v2 = ttnn.register_operation(
+    name="ttnn.max_pool2d_v2",
+)(ttnn._ttnn.operations.maxpool.max_pool2d_v2)
 
 
 average_pool_2d = ttnn.register_operation(
     name="ttnn.average_pool_2d",
-)(ttnn._ttnn.operations.pool.average_pool_2d)
+)(ttnn._ttnn.operations.avgpool.average_pool_2d)
 
 __all__ = []

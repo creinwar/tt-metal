@@ -20,7 +20,9 @@
 #include "pybind11/operations/ternary.hpp"
 #include "pybind11/operations/transformer.hpp"
 
-#include "ttnn/operations/pool/pool_pybind.hpp"
+#include "ttnn/operations/pool/avgpool/avg_pool_pybind.hpp"
+#include "ttnn/operations/pool/maxpool/maxpool_pybind.hpp"
+
 #include "ttnn/operations/eltwise/binary/binary_pybind.hpp"
 #include "ttnn/operations/eltwise/binary_backward/binary_backward_pybind.hpp"
 #include "ttnn/operations/eltwise/unary/unary_pybind.hpp"
@@ -70,8 +72,11 @@ void py_module(py::module& module) {
     auto m_conv2d = module.def_submodule("conv2d", "conv2d operation");
     conv2d::py_module(m_conv2d);
 
-    // auto m_maxpool2d = module.def_submodule("maxpool2d", "maxpool 2d operation");
-    // maxpool2d::py_module(m_maxpool2d);
+    auto m_maxpool = module.def_submodule("maxpool", "maxpool  operation");
+    maxpool::py_module(m_maxpool);
+
+    auto m_avgpool = module.def_submodule("avgpool", "avgpool  operation");
+    avgpool::py_module(m_avgpool);
 
     auto m_transformer = module.def_submodule("transformer", "transformer operations");
     transformer::py_module(m_transformer);
@@ -87,9 +92,6 @@ void py_module(py::module& module) {
 
     auto m_kv_cache = module.def_submodule("kv_cache", "KV cache operations");
     kv_cache::py_module(m_kv_cache);
-
-    auto m_pool = module.def_submodule("pool", "pool operations");
-    pool::py_module(m_pool);
 
     auto m_copy = module.def_submodule("copy", "copy operations");
     copy::py_module(m_copy);
