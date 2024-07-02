@@ -27,6 +27,7 @@
 #include "ttnn/operations/reduction/reduction_pybind.hpp"
 #include "ttnn/operations/eltwise/binary_backward/binary_backward_pybind.hpp"
 #include "ttnn/operations/data_movement/data_movement_pybind.hpp"
+#include "ttnn/operations/eltwise/complex_binary_backward/complex_binary_backward_pybind.hpp"
 
 
 namespace py = pybind11;
@@ -47,6 +48,9 @@ void py_module(py::module& module) {
 
     auto m_binary_backward = module.def_submodule("binary_backward", "binary_backward operations");
     binary_backward::py_module(m_binary_backward);
+
+    auto m_complex_binary_backward = module.def_submodule("complex_binary_backward", "complex_binary_backward operations");
+    complex_binary_backward::py_module(m_complex_binary_backward);
 
     auto m_ternary = module.def_submodule("ternary", "ternary operations");
     ternary::py_module(m_ternary);

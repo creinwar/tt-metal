@@ -483,6 +483,10 @@ from ttnn.operations.binary_backward import (
     mul_bw,
 )
 
+from ttnn.operations.complex_binary_backward import (
+    complex_add_bw,
+)
+
 from ttnn.operations.ternary import (
     addcdiv,
     addcmul,

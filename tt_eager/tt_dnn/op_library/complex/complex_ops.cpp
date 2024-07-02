@@ -282,19 +282,6 @@ std::vector<ComplexTensor> real_bw(const Tensor& grad, const ComplexTensor& inpu
     return grad_tensor;
 }
 
-// complex add
-// self: grad, other: grad * alpha
-std::vector<ComplexTensor> complex_add_bw(const ComplexTensor& grad, const ComplexTensor& input, const ComplexTensor& other, float alpha, const MemoryConfig& output_mem_config) {
-    std::vector<ComplexTensor> grad_tensor;
-    ComplexTensor grad_a = grad;
-    grad_tensor.emplace_back(grad_a);
-    const Tensor& grad_r = grad.real();
-    const Tensor& grad_i = grad.imag();
-    ComplexTensor grad_b = ComplexTensor({mul_unary(grad_r, alpha, output_mem_config), mul_unary(grad_i, alpha, output_mem_config)});
-    grad_tensor.emplace_back(grad_b);
-    return grad_tensor;
-}
-
 // complex sub
 // self: grad, other: -grad * alpha
 std::vector<ComplexTensor> complex_sub_bw(const ComplexTensor& grad, const ComplexTensor& input, const ComplexTensor& other, float alpha, const MemoryConfig& output_mem_config) {
