@@ -5,6 +5,7 @@
 import torch
 import pytest
 import tt_lib
+import ttnn
 from tests.tt_eager.python_api_testing.unit_testing.backward_ops.utility_funcs import data_gen_with_range, compare_pcc
 
 
@@ -369,7 +370,7 @@ def test_unary_exp(input_shapes, device, fast_and_approx):
     _, output_tensor = data_gen_with_range(input_shapes, -1, 1, device)
 
     cq_id = 0
-    tt_lib.tensor.exp(input_tensor, fast_and_approx=fast_and_approx, output_tensor=output_tensor, queue_id=cq_id)
+    ttnn.exp(input_tensor, output_tensor=output_tensor, queue_id=cq_id)
     golden_tensor = torch.exp(in_data)
 
     comp_pass = compare_pcc([output_tensor], [golden_tensor])
