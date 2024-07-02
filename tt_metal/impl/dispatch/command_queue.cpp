@@ -627,7 +627,7 @@ void EnqueueProgramCommand::assemble_device_commands() {
         const auto& circular_buffers_unique_coreranges = program.circular_buffers_unique_coreranges();
         const uint16_t num_multicast_cb_sub_cmds = circular_buffers_unique_coreranges.size();
         uint32_t cb_configs_payload_start =
-            (cmd_sequence_sizeB + CQ_PREFETCH_CMD_BARE_MIN_SIZE +
+            (cmd_sequence_sizeB + (sizeof(CQPrefetchCmd) + sizeof(CQDispatchCmd)) +
              align(num_multicast_cb_sub_cmds * sizeof(CQDispatchWritePackedMulticastSubCmd), L1_ALIGNMENT)) /
             sizeof(uint32_t);
         uint32_t mcast_cb_payload_sizeB = 0;
