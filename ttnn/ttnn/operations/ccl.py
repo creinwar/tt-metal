@@ -19,3 +19,7 @@ def _validate_input_tensors(operation_name, tensor, *args, **kwargs):
 ttnn.register_operation(name="ttnn.all_gather", validate_input_tensors=_validate_input_tensors)(
     ttnn._ttnn.operations.ccl.all_gather
 )
+
+line_all_gather = ttnn.register_operation(validate_input_tensors=_validate_input_tensors)(
+    ttnn._ttnn.operations.ccl.line_all_gather
+)
