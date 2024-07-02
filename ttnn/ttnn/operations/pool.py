@@ -125,29 +125,37 @@ class MaxPool2d:
 def golden_global_avg_pool2d(input_tensor: ttnn.Tensor):
     import torch
 
-    input_tensor = ttnn.from_device(input_tensor)
-    input_tensor = ttnn.to_layout(input_tensor, ttnn.ROW_MAJOR_LAYOUT)
-    input_tensor = ttnn.to_torch(input_tensor)
-
     output_size = (1, 1)
     return torch.nn.functional.global_avg_pool2d(input_tensor, output_size)
 
 
-def golden_maxpool(
-    input_tensor: ttnn.Tensor,
-    kernel_size: Tuple[int, int],
-    stride: Tuple[int, int],
-    padding: Tuple[int, int],
-    dilation: Tuple[int, int],
+def golden_maxpool2d(
+    _input_tensor: ttnn.Tensor,
+    in_n: int,
+    in_h: int,
+    in_w: int,
+    kernel_h: int,
+    kernel_w: int,
+    stride_h: int,
+    stride_w: int,
+    pad_h: int,
+    pad_w: int,
+    dilation_h: int,
+    dilation_w: int,
+    *,
+    memory_config: ttnn.MemoryConfig,
+    nblocks: int,
+    use_multicore: bool,
 ):
     import torch
 
-    input_tensor = ttnn.from_device(input_tensor)
-    input_tensor = ttnn.to_layout(input_tensor, ttnn.ROW_MAJOR_LAYOUT)
-    input_tensor = ttnn.to_torch(input_tensor)
+    kernel_size = (kernel_h, kernel_w)
+    stride = (stride_h, stride_w)
+    padding = (pad_h, pad_w)
+    dilation = (dilation_h, dilation_w)
 
     return torch.nn.functional.max_pool2d(
-        input_tensor, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation
+        _input_tensor, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation
     )
 
 
@@ -155,17 +163,17 @@ global_avg_pool2d = ttnn.register_operation(golden_function=golden_global_avg_po
     ttnn._ttnn.operations.avgpool.global_avg_pool2d
 )
 
-max_pool2d = ttnn.register_operation(name="ttnn.max_pool2d", golden_function=golden_maxpool)(
+max_pool2d = ttnn.register_operation(name="ttnn.max_pool2d", golden_function=golden_maxpool2d)(
     ttnn._ttnn.operations.maxpool.max_pool2d
 )
 
 
-max_pool2d_v2 = ttnn.register_operation(name="ttnn.max_pool2d_v2", golden_function=golden_maxpool)(
+max_pool2d_v2 = ttnn.register_operation(name="ttnn.max_pool2d_v2", golden_function=golden_maxpool2d)(
     ttnn._ttnn.operations.maxpool.max_pool2d_v2
 )
 
 
-average_pool_2d = ttnn.register_operation(name="ttnn.average_pool_2d", golden_function=golden_maxpool)(
+average_pool_2d = ttnn.register_operation(name="ttnn.average_pool_2d", golden_function=golden_maxpool2d)(
     ttnn._ttnn.operations.avgpool.average_pool_2d
 )
 
