@@ -887,8 +887,8 @@ def gen_pad_args(
 
                 input_info.update(
                     {
-                        "output_tensor_shape": output_tensor_shape,
-                        "input_tensor_start": input_tensor_start,
+                        "output_tensor_shape": ttnn.Shape(output_tensor_shape),
+                        "input_tensor_start": ttnn.Shape(input_tensor_start),
                         "pad_value": pad_value,
                     }
                 )

@@ -44,14 +44,16 @@ Keyword Args:
                 const ttnn::Tensor& input_tensor,
                 std::vector<std::pair<uint32_t, uint32_t>> padding,
                 const float value,
+                const bool use_multicore,
                 const std::optional<ttnn::MemoryConfig>& memory_config,
                 uint8_t queue_id) {
-                    return self(queue_id, input_tensor, padding, value, memory_config);
+                    return self(queue_id, input_tensor, padding, value, use_multicore, memory_config);
                 },
                 py::arg("input_tensor"),
                 py::arg("padding"),
                 py::arg("value"),
                 py::kw_only(),
+                py::arg("use_multicore") = true,
                 py::arg("memory_config") = std::nullopt,
                 py::arg("queue_id") = 0,
                 },
@@ -61,15 +63,17 @@ Keyword Args:
                 const Shape output_padded_shape,
                 const Shape input_tensor_start,
                 const float value,
+                const bool use_multicore,
                 const std::optional<ttnn::MemoryConfig>& memory_config,
                 uint8_t queue_id) {
-                    return self(queue_id, input_tensor, output_padded_shape, input_tensor_start, value, memory_config);
+                    return self(queue_id, input_tensor, output_padded_shape, input_tensor_start, value, use_multicore, memory_config);
                 },
                 py::arg("input_tensor"),
                 py::arg("output_padded_shape"),
                 py::arg("input_tensor_start"),
                 py::arg("value"),
                 py::kw_only(),
+                py::arg("use_multicore") = true,
                 py::arg("memory_config") = std::nullopt,
                 py::arg("queue_id") = 0,
                 }

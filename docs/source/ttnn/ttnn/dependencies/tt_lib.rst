@@ -406,7 +406,7 @@ Tensor elementwise operations
 .. autofunction:: tt_lib.tensor.bitwise_xor
 
 .. autofunction:: tt_lib.tensor.bitwise_not
-    
+
 .. autofunction:: tt_lib.tensor.bitwise_and
 
 .. autofunction:: tt_lib.tensor.bitwise_or
@@ -539,8 +539,6 @@ but in general retaining the data.
 .. autofunction:: tt_lib.tensor.untilize_with_unpadding
 
 .. autofunction:: tt_lib.tensor.tilize_with_zero_padding
-
-.. autofunction:: tt_lib.tensor.pad
 
 .. autofunction:: tt_lib.tensor.unpad
 
