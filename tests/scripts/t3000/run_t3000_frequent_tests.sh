@@ -51,6 +51,7 @@ run_t3000_mixtral_tests() {
 
   # mixtral8x7b 8 chip decode model test (env flags set inside the test)
   pytest -n auto models/demos/t3000/mixtral8x7b/tests/test_mixtral_model.py ; fail+=$?
+  pytest -n auto models/demos/t3000/mixtral8x7b/tests/test_mixtral_model_prefill.py ; fail+=$?
 
   # Record the end time
   end_time=$(date +%s)
