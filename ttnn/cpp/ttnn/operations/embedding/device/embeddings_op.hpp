@@ -7,7 +7,6 @@
 #include <optional>
 
 #include "tt_dnn/op_library/run_operation.hpp"
-#include "tt_eager/tensor/tensor.hpp"
 
 using namespace tt::constants;
 
@@ -30,30 +29,5 @@ struct Embeddings {
         const std::vector<Tensor> &input_tensors, std::vector<Tensor> &output_tensors) const;
     tt::stl::reflection::Attributes attributes() const;
 };
-
-inline Tensor embeddings(
-    const Tensor &input_tensor,
-    const Tensor &weights,
-    bool tilized = true,
-    EmbeddingsType embeddings_type = EmbeddingsType::GENERIC,
-    std::optional<uint32_t> pad_token = std::nullopt,
-    const MemoryConfig &mem_config = operation::DEFAULT_OUTPUT_MEMORY_CONFIG,
-    std::optional<const DataType> output_dtype = std::nullopt) {
-    std::vector<Tensor> output_tensors = {Tensor(operation::get_workers_for_op_output({input_tensor, weights}))};
-    operation::launch_op(
-        [tilized, embeddings_type, pad_token, mem_config, output_dtype] (const std::vector<Tensor>& input_tensors, const std::vector<std::optional<const Tensor>>& optional_input_tensors, const std::vector<std::optional<Tensor>>& optional_output_tensors) mutable -> std::vector<Tensor> {
-            auto& input_tensor = input_tensors.at(0);
-            auto& weights = input_tensors.at(1);
-            return operation::run_without_autoformat(
-               Embeddings{
-                   .output_mem_config = mem_config,
-                   .tilized = tilized,
-                   .embeddings_type = embeddings_type,
-                   .pad_token = pad_token,
-                   .output_dtype = output_dtype.value_or(weights.get_dtype())},
-               {input_tensor, weights});
-        }, {input_tensor, weights}, output_tensors);
-    return output_tensors.at(0);
-}
 
 }  // namespace ttnn::operations::embedding
