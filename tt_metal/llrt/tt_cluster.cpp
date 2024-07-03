@@ -809,7 +809,7 @@ std::unordered_set<CoreCoord> Cluster::get_inactive_ethernet_cores(chip_id_t chi
     for (const auto &[eth_core, chan] : get_soc_desc(chip_id).logical_eth_core_to_chan_map) {
         // TODO: UMD routing FW uses these cores for base routing
         // channel 15 is used by syseng tools.
-        if (this->cluster_desc_->is_chip_mmio_capable(chip_id) and (chan == 15)) {
+        if (this->cluster_desc_->is_chip_mmio_capable(chip_id) and (chan == 8 or chan == 9 or chan == 15)) {
             continue;
             ;
         }
