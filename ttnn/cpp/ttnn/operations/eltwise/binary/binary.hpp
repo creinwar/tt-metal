@@ -146,7 +146,7 @@ struct ExecuteBinary {
         const std::optional<Tensor> &optional_output_tensor = std::nullopt,
         std::optional<FusedActivations> activations = std::nullopt) {
 
-        return ExecuteBinary::execute_on_worker_thread(DefaultQueueId, input_tensor_a, scalar, dtype, operation::DEFAULT_OUTPUT_MEMORY_CONFIG, optional_output_tensor, activations);
+        return ExecuteBinary::execute_on_worker_thread(DefaultQueueId, input_tensor_a, scalar, dtype, memory_config, optional_output_tensor, activations);
     }
 
     template <typename... Args>
@@ -171,9 +171,8 @@ struct ExecuteBinary {
             DataType::BFLOAT16,
             Layout::TILE);
         Tensor scalar_tensor_device = scalar_tensor_host.to(input_tensor_a.device());
-        // TODO(arakhmati): #7637 pass in memory_config instead of operation::DEFAULT_OUTPUT_MEMORY_CONFIG
         return ExecuteBinary::execute_on_worker_thread(
-            input_tensor_a, scalar_tensor_device, dtype, operation::DEFAULT_OUTPUT_MEMORY_CONFIG, optional_output_tensor, activations);
+            input_tensor_a, scalar_tensor_device, dtype, memory_config, optional_output_tensor, activations);
     }
 };
 
