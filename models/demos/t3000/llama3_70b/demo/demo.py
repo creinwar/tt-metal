@@ -28,7 +28,7 @@ from models.demos.t3000.llama2_70b.demo.demo import main, construct_arg
     ids=("chat_completion", "text_completion"),
 )
 @pytest.mark.parametrize("decode_only", (True, False), ids=("decode_only", "prefill_decode"))
-@pytest.mark.parametrize("num_layers", (1, 2, 10, 80), ids=("1L", "2L", "10L", "80L"))
+@pytest.mark.parametrize("num_layers", (1, 2, 10, 20, 30, 40, 80), ids=("1L", "2L", "10L", "20L", "30L", "40L", "80L"))
 @pytest.mark.parametrize(
     "implementation, skip_model_load, n_devices",
     (
