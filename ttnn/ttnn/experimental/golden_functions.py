@@ -21,30 +21,6 @@ if not ttnn.CONFIG.enable_fast_runtime_mode:
 
     attach_golden(ttnn.experimental.tensor.exp, _golden_function)
 
-    def _golden_function_matmul(input_tensor_a, input_tensor_b, *args, **kwargs):
-        import torch
-
-        ret = input_tensor_a.float() @ input_tensor_b.float()
-        if "bias" in kwargs:
-            ret += kwargs["bias"]
-        if (
-            "program_config" in kwargs
-            and hasattr(kwargs["program_config"], "fused_activation")
-            and kwargs["program_config"].fused_activation is not None
-        ):
-            activation = kwargs["program_config"].fused_activation.op_type.name
-            if activation == "GELU":
-                ret = torch.nn.functional.gelu(ret)
-            elif activation == "RELU":
-                ret = torch.nn.functional.relu(ret)
-            elif activation == "SILU":
-                ret = torch.nn.functional.silu(ret)
-            else:
-                raise RuntimeError(f"{activation} is not supported as activation function")
-        return ret
-
-    attach_golden(ttnn.experimental.operations.primary.matmul, _golden_function_matmul)
-
     def _golden_function(
         input_tensor,
         kv_input_tensor,
