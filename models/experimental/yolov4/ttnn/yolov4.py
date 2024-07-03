@@ -27,7 +27,6 @@ def fold_bn_to_conv_weights_bias(model, path):
     bias = -(bn_weight) * (bn_running_mean / torch.sqrt(bn_running_var)) + bn_bias
 
     bias = bias.reshape(1, 1, 1, -1)
-    print(path, weight.shape, bias.shape)
     return (
         ttnn.from_torch(
             weight,
@@ -58,19 +57,18 @@ class YOLOv4:
 class Down1:
     def __init__(self, model) -> None:
         torch_model = model.torch_model
-        self.conv1 = Conv(torch_model, "down1.conv1", [1, 320, 320, 4], (1, 1, 1, 1), 64)
-        self.conv2 = Conv(torch_model, "down1.conv2", [1, 320, 320, 32], (2, 2, 1, 1), 32)
-        self.conv3 = Conv(torch_model, "down1.conv3", [1, 160, 160, 64], (1, 1, 1, 1), None)
-        self.conv4 = Conv(torch_model, "down1.conv4", [1, 160, 160, 64], (1, 1, 1, 1), None)
-        self.conv5 = Conv(torch_model, "down1.conv5", [1, 160, 160, 32], (1, 1, 1, 1), None)
-        self.conv6 = Conv(torch_model, "down1.conv6", [1, 160, 160, 64], (1, 1, 1, 1), None)
-        self.conv7 = Conv(torch_model, "down1.conv7", [1, 160, 160, 64], (1, 1, 1, 1), None)
-        self.conv8 = Conv(torch_model, "down1.conv8", [1, 160, 160, 128], (1, 1, 1, 1), None)
+        self.conv1 = Conv(torch_model, "down1.conv1", [1, 320, 320, 4], (1, 1, 1, 1), act_block_h=64)
+        self.conv2 = Conv(torch_model, "down1.conv2", [1, 320, 320, 32], (2, 2, 1, 1), reshard=True)
+        self.conv3 = Conv(torch_model, "down1.conv3", [1, 160, 160, 64], (1, 1, 1, 1))
+        self.conv4 = Conv(torch_model, "down1.conv4", [1, 160, 160, 64], (1, 1, 1, 1))
+        self.conv5 = Conv(torch_model, "down1.conv5", [1, 160, 160, 32], (1, 1, 1, 1))
+        self.conv6 = Conv(torch_model, "down1.conv6", [1, 160, 160, 64], (1, 1, 1, 1))
+        self.conv7 = Conv(torch_model, "down1.conv7", [1, 160, 160, 64], (1, 1, 1, 1))
+        self.conv8 = Conv(torch_model, "down1.conv8", [1, 160, 160, 128], (1, 1, 1, 1))
         self.convs = [self.conv1, self.conv2, self.conv3, self.conv4, self.conv5, self.conv6, self.conv7, self.conv8]
 
     def __call__(self, device, input_tensor):
-        # output_tensor = self.conv1(device,input_tensor)
-        output_tensor = input_tensor
+        output_tensor = self.conv1(device, input_tensor)
         output_tensor_split = self.conv2(device, output_tensor)
         # output_tensor_left = self.conv3(device,output_tensor_split)
 
@@ -79,7 +77,7 @@ class Down1:
         # output_tensor = self.conv6(device,output_tensor)
         # output_tensor = self.conv7(device,output_tensor)
         # output_tensor = self.conv8(device,output_tensor)
-        return output_tensor
+        return output_tensor_split
 
     def __str__(self) -> str:
         this_str = ""
@@ -90,13 +88,14 @@ class Down1:
 
 
 class Conv:
-    def __init__(self, model, path, input_params, conv_params, act_block_h=None) -> None:
+    def __init__(self, model, path, input_params, conv_params, *, act_block_h=None, reshard=False) -> None:
         self.weights, self.bias = fold_bn_to_conv_weights_bias(model, path)
         self.input_params = input_params
-        self.kernel_size = (self.weights.shape[1], self.weights.shape[2])
+        self.kernel_size = (self.weights.shape[2], self.weights.shape[3])
         self.conv_params = conv_params
         self.out_channels = self.weights.shape[0]
         self.act_block_h = act_block_h
+        self.reshard = reshard
 
     def __str__(self) -> str:
         return f"Conv: {self.weights.shape} {self.bias.shape} {self.kernel_size}"
@@ -113,7 +112,7 @@ class Conv:
             packer_l1_accum_enabled=False,
             input_channels_alignment=16 if self.input_params[3] < 16 else 32,
             transpose_shards=False,
-            reshard_if_not_optimal=True,
+            reshard_if_not_optimal=self.reshard,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -143,6 +142,6 @@ class Conv:
 def test_yolo(device):
     yolov4 = YOLOv4("/localdev/smanoj/models/yolov4.pth")
     print(yolov4)
-    x = ttnn.from_torch(torch.randn((1, 320, 320, 32), dtype=torch.bfloat16).float(), dtype=ttnn.bfloat16)
+    x = ttnn.from_torch(torch.randn((1, 320, 320, 3), dtype=torch.bfloat16).float(), dtype=ttnn.bfloat16)
 
     result = yolov4(device, x)
