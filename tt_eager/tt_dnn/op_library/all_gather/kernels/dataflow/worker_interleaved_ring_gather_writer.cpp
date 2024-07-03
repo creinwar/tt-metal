@@ -3,8 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <cstdint>
+#include <array>
 #include "dataflow_api.h"
 #include "tt_eager/tt_dnn/op_library/all_gather/kernels/dataflow/worker_ring_gather_utils.hpp"
+
 
 void kernel_main() {
     const uint32_t dst_addr = get_arg_val<uint32_t>(0);
@@ -38,6 +40,7 @@ void kernel_main() {
     constexpr bool is_clockwise_direction = get_compile_time_arg_val(19) == 1;
     constexpr uint32_t half_cb_n_pages = get_compile_time_arg_val(20);
     constexpr uint32_t ring_size = get_compile_time_arg_val(21);
+    constexpr uint32_t num_buffers_per_channel = get_compile_time_arg_val(22);
     static_assert(half_cb_n_pages > rem_num_pages, "half_cb_n_pages must be greater than or equal to rem_num_pages");
 
     // DPRINT << "WR num_Transfers: " << num_transfers << ", num_full_chunks: " << num_full_chunks << ", rem_num_pages: " << rem_num_pages << "\n";
@@ -58,8 +61,18 @@ void kernel_main() {
 
     // Each worker receiver writer matches with a specific worker sender reader
     // Used to signal that data has been committed to memory and can be read
-    const uint64_t edm_semaphore_noc_addr = get_noc_addr(edm_noc_x, edm_noc_y, edm_sem_addr);
-    const uint64_t edm_l1_sender_base_noc_addr = get_noc_addr(edm_noc_x, edm_noc_y, edm_base_buffer_address);
+
+    uint64_t eth_semaphore_addr = get_noc_addr(edm_noc_x, edm_noc_y, edm_sem_addr);
+    // std::array<uint64_t, num_buffers_per_channel> eth_semaphore_addrs;
+    std::array<uint64_t, num_buffers_per_channel> eth_buffer_addrs;
+    uint32_t buffer_size = num_pages_per_full_chunk * output_page_size;
+    for (uint32_t i = 0; i < num_buffers_per_channel; ++i) {
+        // eth_semaphore_addrs[i] = get_noc_addr(edm_noc_x, edm_noc_y, edm_sem_addr + (i * buffer_size));
+        eth_buffer_addrs[i] = get_noc_addr(edm_noc_x, edm_noc_y, edm_base_buffer_address + (i * (buffer_size + 16)));
+        // DPRINT << "WR buffer_addr[" << i << "]: " << (eth_buffer_addrs[i] & 0xFFFFFFFF) << "\n";
+        // DPRINT << "WR sem_addr[" << i << "]: " << (eth_semaphore_addrs[i] & 0xFFFFFFFF) << ", buffer_addr[" << i << "]: " << (eth_buffer_addrs[i] & 0xFFFFFFFF) << "\n";
+    }
+    uint32_t buffer_index = 0;
 
     uint32_t input_ring_idx = input_start_ring_idx;
     uint32_t output_base_page_idx = output_start_page_idx;
@@ -76,9 +89,14 @@ void kernel_main() {
         for (uint32_t i = 0; i < (num_transfers + 1); ++i) {
             // DPRINT << "WR nsw \n";
             if (i != num_transfers) {
-                noc_semaphore_wait(local_sem_ptr, 1);
-                noc_semaphore_set(local_sem_ptr, 0);
+                {
+                    DeviceZoneScopedN("WAIT_EDM");
+                    DPRINT << "WR NSW\n";
+                    noc_semaphore_wait(local_sem_ptr, 1);
+                    noc_semaphore_set(local_sem_ptr, 0);
+                }
                 // DPRINT << "WR wasc \n";
+                DPRINT << "WR send buf idx " << buffer_index << "sem_addr: " << (eth_semaphore_addr & 0xFFFFFFFF) << "\n";
                 write_and_send_chunk(
                     output_page_idx,
                     col_idx,
@@ -91,8 +109,9 @@ void kernel_main() {
                     row_offset,
                     num_pages_to_forward,
                     output_page_size,
-                    edm_l1_sender_base_noc_addr,
-                    edm_semaphore_noc_addr);
+                    eth_buffer_addrs[buffer_index],
+                    eth_semaphore_addr);
+                    // eth_semaphore_addrs[buffer_index]);
             } else {
                 write_chunk(
                     output_page_idx,
@@ -112,6 +131,8 @@ void kernel_main() {
                 // DPRINT << "WR pop_filler_pages_from_cb \n";
                 pop_filler_pages_from_cb(cb_id, num_filler_pages);
             }
+
+            buffer_index = (buffer_index == num_buffers_per_channel - 1) ? 0 : buffer_index + 1;
 
             if (is_clockwise_direction) {
                 if (input_ring_idx == 0) {
@@ -156,5 +177,5 @@ void kernel_main() {
             row_idx = row_start_idx;
         }
     }
-    // DPRINT << "WR Done \n";
+    DPRINT << "WR Done \n";
 }

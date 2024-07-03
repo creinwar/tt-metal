@@ -79,6 +79,7 @@ def run_all_gather_on_t3000_impl(
     enable_async=False,
     num_workers=0,
     max_channel_size=0,
+    buffers_per_channel=1,
 ):
     if len(all_devices) != 8:
         pytest.skip("Not T3000!")
@@ -124,7 +125,13 @@ def run_all_gather_on_t3000_impl(
 
     for i in range(num_iters):
         tt_out_tensors = ttl.tensor.all_gather(
-            tt_input_tensors, dim, num_links, mem_config, num_workers, max_channel_size
+            tt_input_tensors,
+            dim,
+            num_links,
+            mem_config,
+            num_workers=num_workers,
+            max_channel_size=max_channel_size,
+            buffers_per_channel=buffers_per_channel,
         )
         # tt_out_tensors = ttl.tensor.all_gather(tt_input_tensors, dim, num_links=num_links, memory_config=mem_config)
 
@@ -305,6 +312,7 @@ def test_all_gather_on_t3000_post_commit_looping(
 )
 @pytest.mark.parametrize("num_workers", [0])  # 2, 4, 6, 8])
 @pytest.mark.parametrize("max_channel_size", [0])  # 8704, 8720, 13056, 13072, 17408, 17424, 21760, 21776])
+@pytest.mark.parametrize("buffers_per_channel", [1])  # 8704, 8720, 13056, 13072, 17408, 17424, 21760, 21776])
 def test_all_gather_on_t3000_post_commit(
     all_devices,
     num_devices,
@@ -318,6 +326,7 @@ def test_all_gather_on_t3000_post_commit(
     function_level_defaults,
     num_workers,
     max_channel_size,
+    buffers_per_channel,
 ):
     run_all_gather_on_t3000_impl(
         all_devices,
@@ -332,6 +341,8 @@ def test_all_gather_on_t3000_post_commit(
         function_level_defaults,
         num_workers=num_workers,
         max_channel_size=max_channel_size,
+        buffers_per_channel=buffers_per_channel,
+        num_iters=1,
     )
 
 

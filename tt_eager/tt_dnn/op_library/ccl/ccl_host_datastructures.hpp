@@ -126,6 +126,7 @@ class EriscDatamoverBuilder {
             uint32_t worker_semaphore_address,
             uint32_t num_eth_messages_to_forward,
             uint32_t channel,
+            uint32_t num_buffers,
             std::vector<ccl::WorkerXY> const& worker_coords) :
             worker_coords(worker_coords),
             worker_semaphore_address(worker_semaphore_address),
@@ -139,6 +140,7 @@ class EriscDatamoverBuilder {
         uint32_t num_eth_messages_to_forward;
         uint32_t channel;
         uint32_t largest_message_size_bytes;
+        uint32_t num_buffers;
         bool is_sender;
     };
 
@@ -168,6 +170,7 @@ class EriscDatamoverBuilder {
     ccl::EriscDataMoverTerminationMode const termination_mode;
     uint32_t num_senders;
     uint32_t num_receivers;
+    std::size_t num_buffers_per_channel;
 
     int chip_id;
 
@@ -187,8 +190,8 @@ class EriscDatamoverBuilder {
         std::vector<uint32_t> const& local_semaphore_addresses,
         std::vector<uint32_t> const& local_buffer_addresses,
         ccl::EriscDataMoverBufferSharingMode buffer_sharing_mode,
-        ccl::EriscDataMoverTerminationMode termination_mode =
-        ccl::EriscDataMoverTerminationMode::MESSAGE_COUNT_REACHED,
+        std::size_t num_buffers_per_channel,
+        ccl::EriscDataMoverTerminationMode termination_mode = ccl::EriscDataMoverTerminationMode::MESSAGE_COUNT_REACHED,
         int chip_id = -1) :
         local_semaphore_addresses(local_semaphore_addresses),
         local_buffer_addresses(local_buffer_addresses),
@@ -196,6 +199,7 @@ class EriscDatamoverBuilder {
         handshake_addr(handshake_addr),
         num_channel_buffers(local_buffer_addresses.size()),
         buffer_sharing_mode(buffer_sharing_mode),
+        num_buffers_per_channel(num_buffers_per_channel),
         termination_mode(termination_mode),
         enable_sender(false),
         enable_receiver(false),
@@ -227,7 +231,7 @@ class EriscDatamoverBuilder {
         this->num_senders++;
         auto channel = active_channels.size();
         active_channels.emplace_back(
-            true, worker_semaphore_address, num_eth_messages_to_forward, channel, worker_coords);
+            true, worker_semaphore_address, num_eth_messages_to_forward, channel, this->num_buffers_per_channel, worker_coords);
         log_trace(tt::LogOp, "Adding sender channel:");
         log_trace(tt::LogOp, "\tworker_semaphore_address: {}", active_channels.back().worker_semaphore_address);
         log_trace(tt::LogOp, "\tnum_eth_messages_to_forward: {}", active_channels.back().num_eth_messages_to_forward);
@@ -256,7 +260,7 @@ class EriscDatamoverBuilder {
         this->num_receivers++;
         auto channel = active_channels.size();
         active_channels.emplace_back(
-            false, worker_semaphore_address, num_eth_messages_to_forward, channel, worker_coords);
+            false, worker_semaphore_address, num_eth_messages_to_forward, channel, this->num_buffers_per_channel, worker_coords);
         log_trace(tt::LogOp, "Adding receiver channel:");
         log_trace(tt::LogOp, "\tworker_semaphore_address: {}", active_channels.back().worker_semaphore_address);
         log_trace(tt::LogOp, "\tnum_eth_messages_to_forward: {}", active_channels.back().num_eth_messages_to_forward);
@@ -278,6 +282,7 @@ class EriscDatamoverBuilder {
             1,
             static_cast<uint32_t>(this->num_senders > 0 && active_channels.at(0).is_sender),
             1, // merge packet and payload ready signal
+            this->num_buffers_per_channel,
             chip_id
             };
     }

@@ -89,7 +89,17 @@ operation::ProgramWithCallbacks AllGather::create_program(const std::vector<Tens
     switch (all_gather_mode) {
         case AllGatherMode::RING_INTERLEAVED:
         case AllGatherMode::SINGLE_TILE_HIGH_WIDTH_SHARDED:
-            return all_gather_multi_core_with_workers(input_tensors[0], output_tensors[0], this->dim, this->num_links, this->ring_size, this->ring_index, this->receiver_device_id, this->sender_device_id, this->topology, this->num_workers, this->max_channel_size);
+            return all_gather_multi_core_with_workers(
+                input_tensors[0],
+                output_tensors[0],
+                this->dim,
+                this->num_links,
+                this->ring_size,
+                this->ring_index,
+                this->receiver_device_id,
+                this->sender_device_id, this->topology, this->num_workers,
+                this->max_channel_size,
+                this->buffers_per_channel);
         break;
         case AllGatherMode::FULL_WORKER_GRID_SHARDED:
             TT_THROW("Unsupported AllGatherMode");
@@ -101,7 +111,8 @@ operation::ProgramWithCallbacks AllGather::create_program(const std::vector<Tens
 
 std::vector<Tensor> all_gather_impl(const std::vector<Tensor>& input_tensors, const uint32_t dim, const uint32_t num_links, const MemoryConfig& output_mem_config, const all_gather_op::Topology topology,
     const std::size_t num_workers,
-    const std::size_t max_channel_size) {
+    const std::size_t max_channel_size,
+    const std::size_t buffers_per_channel) {
 
     TT_FATAL(std::getenv("TT_METAL_SLOW_DISPATCH_MODE") == nullptr, "This op is only supported for Fast Dispatch");
 
@@ -118,7 +129,7 @@ std::vector<Tensor> all_gather_impl(const std::vector<Tensor>& input_tensors, co
         // Package output in vector, to populate it with launch_op
         std::vector<Tensor> output_for_curr_device = {output_tensors[i]};
         operation::launch_op(
-            [is_ring, dim, num_links, i, num_inputs, output_mem_config, topology, num_workers, max_channel_size] (const std::vector<Tensor>& input_tensors, const std::vector<std::optional<const Tensor>>& optional_input_tensors, const std::vector<std::optional<Tensor>>& optional_output_tensors) mutable -> std::vector<Tensor> {
+            [is_ring, dim, num_links, i, num_inputs, output_mem_config, topology, num_workers, max_channel_size, buffers_per_channel] (const std::vector<Tensor>& input_tensors, const std::vector<std::optional<const Tensor>>& optional_input_tensors, const std::vector<std::optional<Tensor>>& optional_output_tensors) mutable -> std::vector<Tensor> {
                 bool is_last_chip_in_clockwise_direction = is_ring ? false : i == (num_inputs - 1);
                 bool is_last_chip_in_counter_clockwise_direction = is_ring ? false : i == 0;
 
@@ -128,7 +139,7 @@ std::vector<Tensor> all_gather_impl(const std::vector<Tensor>& input_tensors, co
                 std::optional<chip_id_t> sender_device_id = is_last_chip_in_counter_clockwise_direction ?
                     std::nullopt :
                     std::optional<chip_id_t>(input_tensors.at(2).device()->id());
-                return operation::run(AllGather{dim, num_links, num_inputs, i, receiver_device_id, sender_device_id, output_mem_config,topology, num_workers, max_channel_size}, {input_tensors.at(0)});
+                return operation::run(AllGather{dim, num_links, num_inputs, i, receiver_device_id, sender_device_id, output_mem_config,topology, num_workers, max_channel_size, buffers_per_channel}, {input_tensors.at(0)});
             },
         {input_tensors[i], tensor_on_receiver, tensor_on_sender}, output_for_curr_device);
     }
@@ -137,8 +148,9 @@ std::vector<Tensor> all_gather_impl(const std::vector<Tensor>& input_tensors, co
 
 std::vector<Tensor> all_gather(const std::vector<Tensor>& input_tensors, const uint32_t dim, const uint32_t num_links, const MemoryConfig& output_mem_config,
     const std::size_t num_workers,
-    const std::size_t max_channel_size) {
-    return all_gather_impl(input_tensors, dim, num_links, output_mem_config, all_gather_op::Topology::Ring, num_workers, max_channel_size);
+    const std::size_t max_channel_size,
+    const std::size_t num_buffers_per_worker) {
+    return all_gather_impl(input_tensors, dim, num_links, output_mem_config, all_gather_op::Topology::Ring, num_workers, max_channel_size, num_buffers_per_worker);
 }
 std::vector<Tensor> line_all_gather(const std::vector<Tensor>& input_tensors, const uint32_t dim, const uint32_t num_links, const MemoryConfig& output_mem_config) {
     return all_gather_impl(input_tensors, dim, num_links, output_mem_config, all_gather_op::Topology::Linear);

@@ -28,6 +28,7 @@ struct RingTopology {
         uint32_t ring_size,
         uint32_t ring_index) :
         num_links(num_links), ring_size(ring_size), ring_index(ring_index), is_linear(topology == Topology::Linear) {
+        TT_ASSERT(num_links > 0);
         eth_sender_cores.reserve(num_links);
         eth_receiver_cores.reserve(num_links);
 

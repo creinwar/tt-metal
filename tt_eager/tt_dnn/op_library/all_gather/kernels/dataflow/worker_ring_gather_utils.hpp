@@ -345,7 +345,7 @@ FORCE_INLINE void write_and_send_chunk(
         DeviceZoneScopedN("write_and_send_chunk_write");
     noc_async_write(l1_read_addr, remote_l1_write_addr, page_size * num_pages);
     noc_semaphore_inc(eth_l1_sender_semaphore_addr, 1);
-    // TODO: do eth semaphore inc here
+
     for (uint32_t i = 0; i < num_pages; ++i) {
 #ifdef RM_INTERLEAVED
         uint64_t dst_noc_addr = get_noc_addr(output_page_idx, d);

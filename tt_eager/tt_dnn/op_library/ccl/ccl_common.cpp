@@ -32,7 +32,6 @@ KernelHandle generate_edm_kernels(
     std::vector<uint32_t> const& edm_clockwise_kernel_rt_args = edm_builder.emit_runtime_args();
     // Ethernet Kernels
     std::vector<uint32_t> eth_sender_ct_args = edm_builder.emit_compile_time_args();
-    log_trace(tt::LogOp, "EDM core (x={},y={}):", eth_core.x, eth_core.y);
     log_trace(tt::LogOp, "CT ARGS:");
     for (auto const& s : eth_sender_ct_args) {
         log_trace(tt::LogOp, "\t{}", s);
@@ -84,6 +83,7 @@ void generate_edm_kernels_for_ring_or_linear_topology(
             edm_cores.insert({eth_receiver_core});
         }
     }
+    TT_ASSERT(edm_cores.size() > 0);
 
     KernelHandle edm_kernel_handle = generate_edm_kernels(
         program,

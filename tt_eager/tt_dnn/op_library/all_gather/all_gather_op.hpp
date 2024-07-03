@@ -49,7 +49,16 @@ AllGatherMode choose_all_gather_mode(Tensor const& input_tensor, Tensor const& o
 
 class AllGatherConfig {
    public:
-    AllGatherConfig(Tensor const& input_tensor, Tensor const& output_tensor, uint32_t dim, uint32_t ring_size, uint32_t num_links, all_gather_op::Topology topology, std::size_t num_workers, std::size_t max_channel_size) :
+    AllGatherConfig(
+        Tensor const& input_tensor,
+        Tensor const& output_tensor,
+        uint32_t dim,
+        uint32_t ring_size,
+        uint32_t num_links,
+        all_gather_op::Topology topology,
+        std::size_t num_workers,
+        std::size_t max_channel_size,
+        std::size_t num_buffers_per_worker) :
         num_links(num_links),
         semaphore_size(32),
         ring_size(ring_size),
@@ -63,10 +72,13 @@ class AllGatherConfig {
 
         mode(choose_all_gather_mode(input_tensor, output_tensor, dim)),
         bidirectional_mode(AllGatherBidirectionalMode::FULL_TENSOR),
-        enable_merged_payload_and_channel_sync(true)
+        enable_merged_payload_and_channel_sync(true),
+        num_buffers_per_worker(num_buffers_per_worker)
     {
-        TT_ASSERT(erisc_handshake_address >= eth_l1_mem::address_map::ERISC_L1_UNRESERVED_BASE);
-        TT_ASSERT(erisc_handshake_address < eth_l1_mem::address_map::ERISC_L1_UNRESERVED_BASE + 16);
+        TT_FATAL(num_buffers_per_worker > 0, "num_buffers_per_worker must be > 0");
+        uint32_t max_num_workers = 8; // eth_l1_mem::address_map::MAX_NUM_CONCURRENT_TRANSACTIONS
+        // TT_ASSERT(erisc_handshake_address >= eth_l1_mem::address_map::ERISC_L1_UNRESERVED_BASE);
+        // TT_ASSERT(erisc_handshake_address < eth_l1_mem::address_map::ERISC_L1_UNRESERVED_BASE + 16);
         TT_ASSERT((erisc_handshake_address & (16-1)) == 0);
         if (input_tensor.get_layout() == Layout::TILE && dim != 3) {
             // See issue #6448
@@ -86,11 +98,11 @@ class AllGatherConfig {
         constexpr uint32_t total_l1_buffer_space = eth_l1_mem::address_map::MAX_L1_LOADING_SIZE - eth_l1_mem::address_map::ERISC_L1_UNRESERVED_BASE;
 
         this->is_sharded = input_tensor.is_sharded();
-        this->num_eth_buffers = num_workers;
+        this->num_eth_buffers = num_workers * num_buffers_per_worker;
         if (num_workers == 0) {
-            this->num_eth_buffers = (this->enable_bidirectional ? 8 /*1*/ : (this->is_sharded && topology != all_gather_op::Topology::Linear ? 8 : 4));
+            this->num_eth_buffers = (this->enable_bidirectional ? max_num_workers : (this->is_sharded && topology != all_gather_op::Topology::Linear ? max_num_workers : max_num_workers / 2));
 
-            this->num_eth_buffers = std::min(this->num_eth_buffers, eth_l1_mem::address_map::MAX_NUM_CONCURRENT_TRANSACTIONS / num_duplicate_directions);
+            this->num_eth_buffers = std::min(this->num_eth_buffers, max_num_workers / num_duplicate_directions);
 
             if (this->is_sharded) {
                 this->num_eth_buffers = std::min(this->num_eth_buffers, input_tensor.shard_spec()->num_cores());
@@ -102,7 +114,7 @@ class AllGatherConfig {
                 log_trace(tt::LogOp, "this->num_buffers: {}", this->num_eth_buffers);
             }
         } else {
-            if (this->num_eth_buffers > eth_l1_mem::address_map::MAX_NUM_CONCURRENT_TRANSACTIONS / num_duplicate_directions) {
+            if (this->num_eth_buffers > max_num_workers / num_duplicate_directions) {
                 this->num_eth_buffers /= num_duplicate_directions;
             }
         }
@@ -115,10 +127,23 @@ class AllGatherConfig {
         uint32_t const page_size = input_tensor.buffer()->page_size();
         this->eth_buffer_size = max_channel_size;
         if (max_channel_size == 0) {
-            this->eth_buffer_size = round_down((total_l1_buffer_space - this->semaphore_offset) / (this->num_eth_buffers * num_duplicate_directions), page_size + (enable_merged_payload_and_channel_sync * 16));
+            std::size_t channel_sync_bytes_overhead = (enable_merged_payload_and_channel_sync * 16);
+            std::size_t max_per_buffer_space = (
+                (total_l1_buffer_space - this->semaphore_offset) /
+                (this->num_eth_buffers * num_duplicate_directions * this->num_buffers_per_worker)) - channel_sync_bytes_overhead;
+            log_info(tt::LogOp, "max_per_buffer_space: {}", max_per_buffer_space);
 
-            TT_FATAL(eth_buffer_size == 0 or (this->num_eth_buffers * num_duplicate_directions) <= eth_l1_mem::address_map::MAX_NUM_CONCURRENT_TRANSACTIONS);
-            TT_FATAL(this->eth_buffer_size * (this->num_eth_buffers * num_duplicate_directions) + this->semaphore_offset <= total_l1_buffer_space);
+            this->eth_buffer_size = round_down(max_per_buffer_space, page_size);
+            // log_info(tt::LogOp, "eth_buffer_size_with_channel_sync: {}", eth_buffer_size_with_channel_sync);
+            log_info(tt::LogOp, "page_size: {}", page_size);
+            TT_FATAL(this->eth_buffer_size == 0 or (this->num_eth_buffers * num_duplicate_directions) <= max_num_workers);
+            TT_FATAL(
+                (this->num_eth_buffers * (this->eth_buffer_size + channel_sync_bytes_overhead) * num_duplicate_directions * this->num_buffers_per_worker) + this->semaphore_offset <= total_l1_buffer_space);
+            // this->eth_buffer_size = eth_buffer_size_with_channel_sync - channel_sync_bytes_overhead;
+            log_info(tt::LogOp, "this->eth_buffer_size: {}", eth_buffer_size);
+            TT_ASSERT(this->eth_buffer_size % page_size == 0);
+
+
         } else if (enable_merged_payload_and_channel_sync) {
             max_channel_size += 16;
         }
@@ -139,6 +164,7 @@ class AllGatherConfig {
     uint32_t get_semaphores_offset() const { return this->semaphore_offset; }
     uint32_t get_num_eth_buffers_per_edm() const { return this->num_eth_buffers; }
     uint32_t get_num_workers_per_link() const { return this->num_workers_per_link; }
+    uint32_t get_num_buffers_per_worker() const { return this->num_buffers_per_worker; }
     uint32_t get_num_workers() const { return this->num_workers_per_link * this->num_links; }
 
     uint32_t get_eth_buffer_size() const { return this->eth_buffer_size; }
@@ -182,6 +208,7 @@ class AllGatherConfig {
         log_trace(tt::LogOp, "\terisc_handshake_address: {}", erisc_handshake_address);
         log_trace(tt::LogOp, "\tnum_buffers: {}", num_eth_buffers);
         log_trace(tt::LogOp, "\tnum_workers_per_link: {}", num_workers_per_link);
+        log_trace(tt::LogOp, "\tnum_buffers_per_worker: {}", num_buffers_per_worker);
         log_trace(tt::LogOp, "\teth_buffer_size: {}", eth_buffer_size);
         log_trace(tt::LogOp, "\tsemaphore_size: {}", semaphore_size);
         log_trace(tt::LogOp, "\tsemaphore_offset: {}", semaphore_offset);
@@ -197,6 +224,7 @@ class AllGatherConfig {
     uint32_t num_links;
     uint32_t num_eth_buffers;
     uint32_t num_workers_per_link;
+    uint32_t num_buffers_per_worker;
     uint32_t eth_buffer_size;
     uint32_t semaphore_size;
     uint32_t semaphore_offset;
@@ -245,6 +273,7 @@ struct AllGather {
     const all_gather_op::Topology topology;
     const std::size_t num_workers;
     const std::size_t max_channel_size;
+    const std::size_t buffers_per_channel;
 
     void validate(const std::vector<Tensor> &input_tensors) const;
     std::vector<Shape> compute_output_shapes(const std::vector<Tensor> &input_tensors) const;
@@ -259,11 +288,14 @@ struct AllGather {
         "receiver_device_id",
         "sender_device_id",
         "output_mem_config",
-        "topology");
+        "topology",
+        "num_workers",
+        "max_channel_size",
+        "buffers_per_channel");
 
     const auto attribute_values() const {
         return std::forward_as_tuple(
-            dim, num_links, ring_size, ring_index, receiver_device_id, sender_device_id, output_mem_config, topology);
+            dim, num_links, ring_size, ring_index, receiver_device_id, sender_device_id, output_mem_config, topology, num_workers, max_channel_size, buffers_per_channel);
     }
 };
 
@@ -289,7 +321,8 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(
     const std::optional<chip_id_t> sender_device_id,
     all_gather_op::Topology topology,
     std::size_t num_workers,
-    std::size_t max_channel_size);
+    std::size_t max_channel_size,
+    std::size_t buffers_per_channel);
 
 
 std::vector<Tensor> all_gather_impl(
@@ -299,14 +332,16 @@ std::vector<Tensor> all_gather_impl(
     const MemoryConfig& output_mem_config,
     const all_gather_op::Topology topology,
     const std::size_t num_workers = 0,
-    const std::size_t max_channel_size = 0);
+    const std::size_t max_channel_size = 0,
+    const std::size_t buffers_per_channel = 1);
 std::vector<Tensor> all_gather(
     const std::vector<Tensor> &input_tensors,
     const uint32_t dim,
     const uint32_t num_links = 1,
     const MemoryConfig& output_mem_config = operation::DEFAULT_OUTPUT_MEMORY_CONFIG,
     const std::size_t num_workers = 0,
-    const std::size_t max_channel_size = 0);
+    const std::size_t max_channel_size = 0,
+    const std::size_t buffers_per_channel = 1);
 std::vector<Tensor> line_all_gather(
     const std::vector<Tensor> &input_tensors,
     const uint32_t dim,
