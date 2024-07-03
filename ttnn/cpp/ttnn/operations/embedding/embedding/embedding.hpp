@@ -16,8 +16,6 @@ namespace operations {
 
 namespace embedding {
 
-using EmbeddingsType = tt::tt_metal::EmbeddingsType;
-
 struct Embedding {
     static const std::array<ttnn::TensorSchema, 2> input_tensor_schemas() {
         return {
@@ -55,7 +53,7 @@ struct Embedding {
 
         bool tilized = layout == ttnn::TILE_LAYOUT;
         auto embeddings = operation::run(
-                              tt::tt_metal::Embeddings{
+                              Embeddings{
                                   .output_mem_config = memory_config.value_or(input_tensor.memory_config()),
                                   .tilized = tilized,
                                   .embeddings_type = embeddings_type,
