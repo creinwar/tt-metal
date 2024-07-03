@@ -279,6 +279,46 @@ void bind_unary_chain(py::module& module) {
 }
 
 template <typename unary_operation_t>
+void bind_unary_composite(py::module& module, const unary_operation_t& operation) {
+    auto doc = fmt::format(
+        R"doc({0}(input_tensor: ttnn.Tensor, *, memory_config: Optional[ttnn.MemoryConfig] = None) -> ttnn.Tensor
+
+            Applies {0} to :attr:`input_tensor` element-wise.
+
+            .. math::
+                {0}(\\mathrm{{input\\_tensor}}_i)
+
+            Args:
+                * :attr:`input_tensor`
+
+            Keyword Args:
+                * :attr:`memory_config` (Optional[ttnn.MemoryConfig]): Memory configuration for the operation.
+                * :attr:`output_tensor` (Optional[ttnn.Tensor]): preallocated output tensor
+
+            Example:
+
+                >>> tensor = ttnn.from_torch(torch.tensor((1, 2), dtype=torch.bfloat16), device=device)
+                >>> output = {1}(tensor)
+        )doc",
+        operation.name(),
+        operation.python_fully_qualified_name());
+
+    bind_registered_operation(
+        module,
+        operation,
+        doc,
+        ttnn::pybind_overload_t{
+            [](const unary_operation_t& self,
+               const Tensor& input_tensor,
+               const std::optional<MemoryConfig>& memory_config) {
+                    return self(input_tensor, memory_config);
+                },
+            py::arg("input_tensor"),
+            py::kw_only(),
+            py::arg("memory_config") = std::nullopt});
+}
+
+template <typename unary_operation_t>
 void bind_unary_composite_operation(py::module& module, const unary_operation_t& operation) {
     auto doc = fmt::format(
         R"doc({0}(input_tensor: ttnn.Tensor, *, memory_config: Optional[ttnn.MemoryConfig] = None) -> ttnn.Tensor
@@ -555,7 +595,8 @@ void py_module(py::module& module) {
     detail::bind_unary_composite_operation(module, ttnn::sinh);
     detail::bind_unary_composite_operation(module, ttnn::softsign);
     detail::bind_unary_composite_operation(module, ttnn::swish);
-    detail::bind_unary_composite_operation(module, ttnn::tanhshrink);
+    // detail::bind_unary_composite_operation(module, ttnn::tanhshrink);
+    detail::bind_unary_composite(module, ttnn::tanhshrink);
     detail::bind_unary_operation_with_diag(module, ttnn::tril);
     detail::bind_unary_operation_with_diag(module, ttnn::triu);
 }

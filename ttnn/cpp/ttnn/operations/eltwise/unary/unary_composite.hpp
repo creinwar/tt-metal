@@ -7,12 +7,44 @@
 #include "ttnn/decorators.hpp"
 #include "ttnn/operations/core.hpp"
 #include "ttnn/validation.hpp"
+#include "ttnn/cpp/ttnn/operations/eltwise/unary/device/unary_composite_op.cpp"
 
 namespace ttnn {
 
 namespace operations {
 
 namespace unary {
+
+template <UnaryCompositeOpType unary_comp_op_type>
+struct Unary_composite_ops
+{
+    static ttnn::Tensor execute_on_worker_thread(
+        const Tensor& input_tensor,
+        const std::optional<MemoryConfig>& memory_config = std::nullopt)
+        {
+            auto op_type = utils::get_function_type1(unary_comp_op_type);
+            return op_type(input_tensor, memory_config);
+        }
+
+    static ttnn::Tensor execute_on_worker_thread(
+        const Tensor& input_tensor,
+        float value_1,
+        float value_2,
+        const std::optional<MemoryConfig>& memory_config = std::nullopt)
+        {
+            auto op_type = utils::get_function_type2(unary_comp_op_type);
+            return op_type(input_tensor, value_1, value_2, memory_config);
+        }
+
+    static ttnn::Tensor execute_on_worker_thread(
+        const Tensor& input_tensor,
+        int value_1,
+        const std::optional<MemoryConfig>& memory_config = std::nullopt)
+        {
+            auto op_type = utils::get_function_type3(unary_comp_op_type);
+            return op_type(input_tensor, value_1, memory_config);
+        }
+};
 
 // re-implement tt_eager composite unary op => ttnn composite unary ops.
 Tensor deg2rad(uint8_t queue_id, const Tensor& input_tensor, const std::optional<MemoryConfig>& memory_config = std::nullopt, const std::optional<Tensor>& optional_output_tensor = std::nullopt) {
@@ -92,9 +124,9 @@ Tensor softsign(uint8_t queue_id, const Tensor& input_tensor, const std::optiona
 Tensor swish(uint8_t queue_id, const Tensor& input_tensor, const std::optional<MemoryConfig>& memory_config = std::nullopt, const std::optional<Tensor>& optional_output_tensor = std::nullopt) {
     return tt::tt_metal::swish(input_tensor, memory_config.value_or(input_tensor.memory_config()));
 }
-Tensor tanhshrink(uint8_t queue_id, const Tensor& input_tensor, const std::optional<MemoryConfig>& memory_config = std::nullopt, const std::optional<Tensor>& optional_output_tensor = std::nullopt) {
-    return tt::tt_metal::tanhshrink(input_tensor, memory_config.value_or(input_tensor.memory_config()));
-}
+// Tensor tanhshrink(uint8_t queue_id, const Tensor& input_tensor, const std::optional<MemoryConfig>& memory_config = std::nullopt, const std::optional<Tensor>& optional_output_tensor = std::nullopt) {
+//     return tt::tt_metal::tanhshrink(input_tensor, memory_config.value_or(input_tensor.memory_config()));
+// }
 Tensor tril(
     uint8_t queue_id,
     const Tensor& input_tensor,
@@ -139,8 +171,10 @@ constexpr auto multigammaln =
 constexpr auto sinh = ttnn::register_operation("ttnn::sinh", TO_LAMBDA_WITH_RESHAPE(ttnn::operations::unary::sinh));
 constexpr auto softsign = ttnn::register_operation("ttnn::softsign", TO_LAMBDA_WITH_RESHAPE(ttnn::operations::unary::softsign));
 constexpr auto swish = ttnn::register_operation("ttnn::swish", TO_LAMBDA_WITH_RESHAPE(ttnn::operations::unary::swish));
-constexpr auto tanhshrink =
-    ttnn::register_operation("ttnn::tanhshrink", TO_LAMBDA_WITH_RESHAPE(ttnn::operations::unary::tanhshrink));
+// constexpr auto tanhshrink =
+//     ttnn::register_operation("ttnn::tanhshrink", TO_LAMBDA_WITH_RESHAPE(ttnn::operations::unary::tanhshrink));
+
+constexpr auto tanhshrink = ttnn::register_operation<ttnn::operations::unary::Unary_composite_ops<ttnn::operations::unary::UnaryCompositeOpType::TANHSHRINK>>("ttnn::tanhshrink");
 constexpr auto tril = ttnn::register_operation("ttnn::tril", TO_LAMBDA_WITH_RESHAPE(ttnn::operations::unary::tril));
 constexpr auto triu = ttnn::register_operation("ttnn::triu", TO_LAMBDA_WITH_RESHAPE(ttnn::operations::unary::triu));
 
