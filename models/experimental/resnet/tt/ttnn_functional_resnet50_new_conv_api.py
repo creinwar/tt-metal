@@ -12,6 +12,8 @@ from models.utility_functions import (
 from typing import List
 from loguru import logger
 
+is_layer4_module1 = False
+
 hardcoded_matmul_config_linear = {
     8: ttnn.MatmulMultiCoreReuseMultiCast1DProgramConfig(
         compute_with_storage_grid_size=(8, 4),
@@ -301,6 +303,11 @@ class resnet50Bottleneck:
 
         reallocate_halo_output = batch_size == 20
         logger.debug(f"Running conv2")
+        global is_layer4_module1
+        if is_layer4_module1:
+            temp = ttnn.to_torch(out)
+            out = ttnn.from_torch(temp)
+            is_layer4_module1 = False
         out, input_height, input_width, self.conv2_weight_tensor, self.conv2_bias_tensor = ttnn.conv2d(
             input_tensor=out,
             weight_tensor=self.conv2_weight_tensor,
@@ -840,6 +847,8 @@ class resnet50:
                 x = ttnn.to_memory_config(x, ops_parallel_config["layer4_module1_input"])
 
         logger.debug(f"==== Running layer 4 module 1")
+        global is_layer4_module1
+        is_layer4_module1 = True
         x, x_height, x_width = self.layer4_module1(
             x,
             device,
