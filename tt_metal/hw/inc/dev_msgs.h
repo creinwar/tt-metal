@@ -68,6 +68,7 @@ struct launch_msg_t {  // must be cacheline aligned
     // Ring buffer of kernel configuration data
     volatile uint32_t kernel_config_base;
     volatile uint16_t rta_offsets[DISPATCH_CLASS_MAX_PROC];
+    volatile uint16_t crta_offsets[DISPATCH_CLASS_MAX_PROC];
 
     volatile uint8_t mode;                   // dispatch mode host/dev
     volatile uint8_t brisc_noc_id;
@@ -75,8 +76,11 @@ struct launch_msg_t {  // must be cacheline aligned
     volatile uint8_t max_cb_index;
     volatile uint8_t dispatch_core_x;
     volatile uint8_t dispatch_core_y;
+    volatile uint8_t pad1;
+    volatile uint8_t pad2;
+    volatile uint8_t pad3;
     volatile uint8_t run;  // must be in last cacheline of this msg
-};
+} __attribute__((packed));
 
 struct slave_sync_msg_t {
     union {
