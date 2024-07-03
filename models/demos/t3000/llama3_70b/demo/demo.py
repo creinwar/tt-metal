@@ -58,6 +58,9 @@ from models.demos.t3000.llama2_70b.demo.demo import main, construct_arg
     ("models/demos/t3000/llama2_70b/demo/data/llama3_ground_truth.json", None),
     ids=("check_enabled", "check_disabled"),
 )
+@pytest.mark.parametrize(
+    "device_params", [{"trace_region_size": 17068032}], indirect=True
+)  # TODO: Update once trace fails
 def test_LlamaModel_demo(
     # model args
     implementation,
@@ -91,6 +94,7 @@ def test_LlamaModel_demo(
     for i in t3k_device_mesh.get_device_ids():
         device = t3k_device_mesh.get_device(i)
         device.enable_async(True)
+        device.enable_program_cache()
 
     args = construct_arg(
         implementation=implementation,

@@ -173,7 +173,7 @@ def run_decode(args, model, tokenizer, prompt_tokens, prompts, return_logits=Fal
     for cur_pos in range(min_prompt_len, total_len):
         start = time()
         input_tokens = tokens[:, prev_pos:cur_pos]
-        logits = model.forward(input_tokens, prev_pos, decode_only=args.decode_only)
+        logits = model.forward(input_tokens, 126, decode_only=args.decode_only)
         # expects logits to be of shape (bsz, 1, vocab_size)
 
         # sample next token
@@ -187,7 +187,7 @@ def run_decode(args, model, tokenizer, prompt_tokens, prompts, return_logits=Fal
 
         tokens, eos_reached, prev_pos = prepare_next_input(tokenizer, tokens, input_text_mask, cur_pos, next_token)
 
-        if all(eos_reached):
+        if all(eos_reached) or True:
             break
 
         # profiling
@@ -403,6 +403,7 @@ def test_LlamaModel_demo(
     for i in t3k_device_mesh.get_device_ids():
         device = t3k_device_mesh.get_device(i)
         device.enable_async(True)
+        device.enable_program_cache()
 
     args = construct_arg(
         implementation=implementation,

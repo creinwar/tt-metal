@@ -74,12 +74,60 @@ class TtLlamaModelForGeneration:
     def decode_forward(self, tokens: torch.Tensor, start_pos: int, *args, **kwargs):
         tt_inp_emb, start_pos, rot_mat, attn_mask = self.tt_model.prepare_inputs(tokens, start_pos)
 
+        ########### TRACE ###########
+        import time
+
+        logger.info(f"Trace with input shape: {tt_inp_emb.shape=}")
+
+        logger.info("Compiling Model")
+        c1 = time.time()
         tt_logits = self.tt_model(
             tt_inp_emb,
             rot_mat,
             start_pos,
             attn_mask,
         )
+        logits = ttnn.to_torch(
+            tt_logits, device=self.device_mesh, mesh_composer=ConcatMeshToTensor(self.device_mesh, dim=3)
+        )
+        c2 = time.time()
+        logger.info(f"Compiling Model took: {c2 - c1} seconds.")
+
+        logger.info("Capturing Trace")
+        t1 = time.time()
+        trace_id = ttnn.begin_trace_capture(self.device_mesh, cq_id=0)
+        tt_logits = self.tt_model(
+            tt_inp_emb,
+            rot_mat,
+            start_pos,
+            attn_mask,
+        )
+        ttnn.end_trace_capture(self.device_mesh, trace_id, cq_id=0)
+        t2 = time.time()
+        logger.info(f"Capturing Trace took: {t2 - t1} seconds.")
+
+        logger.info("Starting Trace perf test...")
+        num_iters = 100
+
+        times = []
+        for i in range(num_iters):
+            x1 = time.time()
+            ttnn.execute_trace(self.device_mesh, trace_id, blocking=False)
+            logits = ttnn.to_torch(
+                tt_logits, device=self.device_mesh, mesh_composer=ConcatMeshToTensor(self.device_mesh, dim=3)
+            )
+
+            x2 = time.time()
+
+            times.append(x2 - x1)
+        logger.info(
+            f"Ran Trace for {num_iters} iterations. Avg Trace execution time: {sum(times[1:]) / len(times[1:])} seconds."
+        )
+        print(times)
+        ttnn.release_trace(self.device_mesh, trace_id)
+        breakpoint()
+
+        ########### TRACE ###########
 
         del tt_inp_emb
         del rot_mat
