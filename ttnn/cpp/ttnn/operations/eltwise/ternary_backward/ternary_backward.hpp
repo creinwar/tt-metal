@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include "device/ternary_backward_op.cpp"
 #include "ttnn/device_operation.hpp"
 #include "ttnn/operations/data_movement.hpp"
 
@@ -126,7 +125,7 @@ struct ExecuteTernaryBackward {
 
 };
 
-}  // operations::ternary
+}  // operations::ternary_backward
 
 //type 1
 constexpr auto addcmul_bw = ttnn::register_operation<operations::ternary_backward::ExecuteTernaryBackward<operations::ternary_backward::TernaryBackwardOpType::ADDCMUL_BW>>("ttnn::addcmul_bw");
