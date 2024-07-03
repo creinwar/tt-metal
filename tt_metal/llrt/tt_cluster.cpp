@@ -264,7 +264,9 @@ void Cluster::open_driver(
             skip_driver_allocs,
             clean_system_resources,
             perform_harvesting);
-        device_driver->configure_active_ethernet_cores_for_mmio_device(mmio_device_id, {});
+        if (this->arch_ == tt::ARCH::WORMHOLE_B0) {
+            device_driver->configure_active_ethernet_cores_for_mmio_device(mmio_device_id, {});
+        }
         device_driver->set_driver_host_address_params(host_address_params);
         device_driver->set_driver_eth_interface_params(eth_interface_params);
 

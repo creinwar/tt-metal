@@ -1232,10 +1232,8 @@ void EnqueueRecordEventCommand::process() {
         }
 
         CoreCoord dispatch_physical_core = get_physical_core_coordinate(dispatch_location, core_type);
-        uint8_t noc_idx = (this->device->id() >= 4) ? 0  : this->noc_index;
-        // std::cout << "Dispatch Core: " << this->device->id() << " " << dispatch_physical_core.str() << " " << +(noc_idx) << " " << this->device->get_noc_unicast_encoding(noc_idx, dispatch_physical_core) << std::endl;
         unicast_sub_cmds[cq_id] = CQDispatchWritePackedUnicastSubCmd{
-            .noc_xy_addr = this->device->get_noc_unicast_encoding( noc_idx /* this->noc_index*/, dispatch_physical_core)};
+            .noc_xy_addr = this->device->get_noc_unicast_encoding(this->noc_index, dispatch_physical_core)};
         event_payloads[cq_id] = {event_payload.data(), event_payload.size() * sizeof(uint32_t)};
     }
 
