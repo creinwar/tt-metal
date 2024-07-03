@@ -77,9 +77,8 @@ template <typename concrete_operation_t, typename execute_on_worker_thread_retur
 inline Tensors create_async_output_tensors(const Tensors& inputs, const OptionalConstTensors& optional_inputs) {
     bool enable_autoformat_device = false;
 
-    constexpr bool custom_create_async_outputs = requires(const concrete_operation_t& t) {
-        t.create_async_output_tensors(inputs, optional_inputs);
-    };
+    constexpr bool custom_create_async_outputs =
+        requires(const concrete_operation_t& t) { t.create_async_output_tensors(inputs, optional_inputs); };
 
     if constexpr (custom_create_async_outputs) {
         return concrete_operation_t::create_async_output_tensors(inputs, optional_inputs);
@@ -120,36 +119,7 @@ constexpr auto extract_args(Args&&... args) {
 }
 
 template <typename concrete_operation_t, typename... args_t>
-constexpr auto validate(const char* cpp_fully_qualified_name, args_t&&... args) {
-    if constexpr (has_input_tensor_schemas<concrete_operation_t>()) {
-        if (ttnn::CONFIG.enable_fast_runtime_mode) {
-            return;
-        }
-
-        constexpr auto input_tensors_to_validate = [](args_t&&... args) {
-            if constexpr (has_input_tensors_to_validate<concrete_operation_t, args_t&&...>()) {
-                return concrete_operation_t::input_tensors_to_validate(std::forward<args_t>(args)...);
-            } else {
-                return extract_args<Tensor, std::optional<const Tensor>>(std::forward<args_t>(args)...);
-            }
-        };
-
-        auto tensors_to_validate = input_tensors_to_validate(std::forward<args_t>(args)...);
-        static_assert(
-            std::tuple_size_v<decltype(tensors_to_validate)> ==
-                std::tuple_size_v<decltype(concrete_operation_t::input_tensor_schemas())>,
-            "Number of tensors to validate must match the number of input tensors schemas");
-        if constexpr (std::tuple_size_v<decltype(tensors_to_validate)> > 0) {
-            [cpp_fully_qualified_name, &tensors_to_validate]<auto... Ns>(std::index_sequence<Ns...>) {
-                (ttnn::validate_input_tensor(
-                     cpp_fully_qualified_name,
-                     std::get<Ns>(tensors_to_validate),
-                     concrete_operation_t::input_tensor_schemas().at(Ns)),
-                 ...);
-            }(std::make_index_sequence<std::tuple_size_v<decltype(tensors_to_validate)>>{});
-        }
-    }
-}
+constexpr auto validate(const char* cpp_fully_qualified_name, args_t&&... args) {}
 
 template <typename... args_t>
 auto map_launch_op_args_to_execute_on_worker_thread_args(
