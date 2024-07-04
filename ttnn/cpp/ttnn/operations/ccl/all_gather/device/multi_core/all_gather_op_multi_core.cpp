@@ -8,7 +8,7 @@
 #include "eth_l1_address_map.h"
 #include "impl/buffers/buffer.hpp"
 #include "tensor/tensor_impl.hpp"
-#include "tt_dnn/op_library/all_gather/all_gather_op.hpp"
+#include "ttnn/operations/ccl/all_gather/device/all_gather_op.hpp"
 #include "tt_dnn/op_library/ccl/shared_with_host/hetergeneous_data_structs.hpp"
 #include "tt_eager/tt_dnn/op_library/ccl/ccl_host_datastructures.hpp"
 #include "tt_eager/tt_dnn/op_library/ccl/ccl_common.hpp"
@@ -22,9 +22,9 @@
 
 using namespace tt::constants;
 
-namespace tt {
+namespace ttnn {
 
-namespace tt_metal {
+namespace utils {
 
 using namespace ccl;
 
@@ -66,13 +66,13 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
     TT_FATAL(!(receiver_device_id == std::nullopt && sender_device_id == std::nullopt), "At least one of receiver_device_id or sender_device_id must be specified");
 
     bool is_linear = topology == all_gather_op::Topology::Linear;
-    std::unique_ptr<CclOpTensorConfig> input_tensor_config = CclOpTensorConfig::build_all_gather_tensor_config(input_tensor);
-    std::unique_ptr<CclOpTensorConfig> output_tensor_config = CclOpTensorConfig::build_all_gather_tensor_config(output_tensor);
+    std::unique_ptr<tt::tt_metal::ccl::CclOpTensorConfig> input_tensor_config = tt::tt_metal::ccl::CclOpTensorConfig::build_all_gather_tensor_config(input_tensor);
+    std::unique_ptr<tt::tt_metal::ccl::CclOpTensorConfig> output_tensor_config = tt::tt_metal::ccl::CclOpTensorConfig::build_all_gather_tensor_config(output_tensor);
 
-    tt_metal::Program program{};
+    tt::tt_metal::Program program{};
     const auto& device = input_tensor.device();
     auto const& all_gather_config = AllGatherConfig(input_tensor, output_tensor, dim, ring_size, num_links, topology);
-    auto const& topology_config = ccl::RingTopology(device, topology, sender_device_id, receiver_device_id, num_links, ring_size, ring_index);
+    auto const& topology_config = tt::tt_metal::ccl::RingTopology(device, topology, sender_device_id, receiver_device_id, num_links, ring_size, ring_index);
 
     auto const& sharding_info = ShardedAllGatherConfig(input_tensor, output_tensor, dim);
     bool enable_print = false; // ring_index == 0
@@ -96,8 +96,8 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
         log_trace(tt::LogOp, "input_buffer->shard_spec().tensor2d_shape[1]: {}", input_buffer->shard_spec().tensor2d_shape[1]);
     }
     const uint32_t max_buffer_per_chunk = is_sharded ?
-        round_down(all_gather_config.get_eth_buffer_size(), shard_size_in_bytes):
-        round_down(all_gather_config.get_eth_buffer_size(), input_tensor_config->get_page_size());
+        tt::round_down(all_gather_config.get_eth_buffer_size(), shard_size_in_bytes):
+        tt::round_down(all_gather_config.get_eth_buffer_size(), input_tensor_config->get_page_size());
     const uint32_t max_pages_per_chunk = is_sharded ?
         max_buffer_per_chunk / shard_size_in_bytes :
         max_buffer_per_chunk / input_page_size;
@@ -107,7 +107,7 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
     log_trace(tt::LogOp, "max_pages_per_chunk: {}", max_pages_per_chunk);
     bool rm = input_tensor.get_layout() == Layout::ROW_MAJOR;
     bool width = input_tensor.get_legacy_shape().rank() - 1 == dim;
-    DataFormat df = tt_metal::datatype_to_dataformat_converter(input_tensor.get_dtype());
+    tt::DataFormat df = datatype_to_dataformat_converter(input_tensor.get_dtype());
 
     uint32_t global_num_workers = all_gather_config.get_num_eth_buffers_per_edm() * num_links;
 
@@ -170,9 +170,9 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
         }
 
         clockwise_edm_builders.emplace_back(
-            all_gather_config.get_eth_buffer_size(), all_gather_config.get_erisc_handshake_address(), edm_sem_addrs_per_link.at(link), edm_buffer_addrs_per_link.at(link), ccl::EriscDataMoverBufferSharingMode::NOT_SHARED, ccl::EriscDataMoverTerminationMode::MESSAGE_COUNT_REACHED);
+            all_gather_config.get_eth_buffer_size(), all_gather_config.get_erisc_handshake_address(), edm_sem_addrs_per_link.at(link), edm_buffer_addrs_per_link.at(link), tt::tt_metal::ccl::EriscDataMoverBufferSharingMode::NOT_SHARED, tt::tt_metal::ccl::EriscDataMoverTerminationMode::MESSAGE_COUNT_REACHED);
         counter_clockwise_edm_builders.emplace_back(
-            all_gather_config.get_eth_buffer_size(), all_gather_config.get_erisc_handshake_address(), edm_sem_addrs_per_link.at(link), edm_buffer_addrs_per_link.at(link), ccl::EriscDataMoverBufferSharingMode::NOT_SHARED, ccl::EriscDataMoverTerminationMode::MESSAGE_COUNT_REACHED);
+            all_gather_config.get_eth_buffer_size(), all_gather_config.get_erisc_handshake_address(), edm_sem_addrs_per_link.at(link), edm_buffer_addrs_per_link.at(link), tt::tt_metal::ccl::EriscDataMoverBufferSharingMode::NOT_SHARED, tt::tt_metal::ccl::EriscDataMoverTerminationMode::MESSAGE_COUNT_REACHED);
     }
 
     for (uint32_t direction = 0; direction < num_full_send_directions; direction++) {
@@ -233,7 +233,7 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
             pages_per_link.at(i)++;
         }
 
-        auto tensor_slicer = ccl::InterleavedRingAllGatherTensorSlicer (
+        auto tensor_slicer = tt::tt_metal::ccl::InterleavedRingAllGatherTensorSlicer (
             input_tensor,
             output_tensor,
             dim,
@@ -259,20 +259,20 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
             log_trace(tt::LogOp, "input_page_size: {}", input_page_size);
             uint32_t cb_num_pages = 2 * max_pages_per_chunk;
             log_trace(tt::LogOp, "cb_num_pages: {}", cb_num_pages);
-            uint32_t src0_cb_index = CB::c_in0;
-            tt_metal::CircularBufferConfig cb_src0_config = tt_metal::CircularBufferConfig(cb_num_pages * cb_page_size, {{src0_cb_index, df}})
+            uint32_t src0_cb_index = tt::CB::c_in0;
+            CircularBufferConfig cb_src0_config = CircularBufferConfig(cb_num_pages * cb_page_size, {{src0_cb_index, df}})
             .set_page_size(src0_cb_index, cb_page_size);
             CBHandle cb_src0_sender_workers = CreateCircularBuffer(program, sender_workers, cb_src0_config);
             CBHandle cb_src0_receiver_workers = CreateCircularBuffer(program, receiver_workers, cb_src0_config);
 
             // This semaphore is used by the receiver core to tell workers that data is available to read
-            auto receiver_worker_semaphore_addr = tt_metal::CreateSemaphore(program, receiver_workers, 0);
+            auto receiver_worker_semaphore_addr = CreateSemaphore(program, receiver_workers, 0);
             // This semaphore is used by the receiver core to tell the worker sender writer that sender buffer is available to write to
-            auto sender_worker_writer_semaphore_addr = tt_metal::CreateSemaphore(program, sender_workers, 0);
+            auto sender_worker_writer_semaphore_addr = CreateSemaphore(program, sender_workers, 0);
             // This semaphore is used by the worker receiver writer to tell the worker sender reader that data has been committed to memory
             // This is currently a running counter of how many chunks were committed since the sender worker never decrements this buffer
             // Potentially avoid overflow by having it actually decrement (using noc atomic inc with value of -1)
-            auto sender_worker_reader_semaphore_addr = tt_metal::CreateSemaphore(program, sender_workers, 0);
+            auto sender_worker_reader_semaphore_addr = CreateSemaphore(program, sender_workers, 0);
 
             // Rename this the _channel
             std::vector<uint32_t> pages_per_buffer;
@@ -406,15 +406,15 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
             for (uint32_t b = 0; b < all_gather_config.get_num_eth_buffers_per_edm(); ++b) {
                 uint32_t num_workers_per_eth_buffer = std::min(workers_per_link, all_gather_config.get_num_eth_buffers_per_edm() - worker_index);
 
-                std::vector<ccl::WorkerXY> sender_worker_coords;
-                std::vector<ccl::WorkerXY> receiver_worker_coords;
+                std::vector<tt::tt_metal::ccl::WorkerXY> sender_worker_coords;
+                std::vector<tt::tt_metal::ccl::WorkerXY> receiver_worker_coords;
                 for (uint32_t w = b * num_workers_per_eth_buffer; w < (b + 1) * num_workers_per_eth_buffer; ++w) {
                     sender_worker_coords.push_back(
-                        ccl::WorkerXY(
+                        tt::tt_metal::ccl::WorkerXY(
                             device->worker_core_from_logical_core(sender_worker_cores.at(w)).x,
                             device->worker_core_from_logical_core(sender_worker_cores.at(w)).y));
                     receiver_worker_coords.push_back(
-                        ccl::WorkerXY(
+                        tt::tt_metal::ccl::WorkerXY(
                             device->worker_core_from_logical_core(receiver_worker_cores.at(w)).x,
                             device->worker_core_from_logical_core(receiver_worker_cores.at(w)).y));
                 }
@@ -619,17 +619,17 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
                     std::vector<uint32_t> const& worker_send_reader_rt_args = build_worker_send_reader_rt_args();
 
                     std::string const& send_reader_kernel_path = is_sharded ?
-                        "tt_eager/tt_dnn/op_library/all_gather/kernels/dataflow/worker_sharded_ring_gather_send_reader.cpp" :
-                        "tt_eager/tt_dnn/op_library/all_gather/kernels/dataflow/worker_interleaved_ring_gather_send_reader.cpp";
-                    KernelHandle worker_reader_sender_kernel_id = tt_metal::CreateKernel(
+                        "ttnn/cpp/ttnn/operations/ccl/all_gather/device/kernels/dataflow/worker_sharded_ring_gather_send_reader.cpp" :
+                        "ttnn/cpp/ttnn/operations/ccl/all_gather/device/kernels/dataflow/worker_interleaved_ring_gather_send_reader.cpp";
+                    KernelHandle worker_reader_sender_kernel_id = tt::tt_metal::CreateKernel(
                         program,
                         send_reader_kernel_path,
                         sender_worker_cores.at(b),
-                        tt_metal::ReaderDataMovementConfig(worker_send_reader_ct_args, worker_defines));
+                        tt::tt_metal::ReaderDataMovementConfig(worker_send_reader_ct_args, worker_defines));
 
                     worker_reader_sender_kernels.push_back(worker_reader_sender_kernel_id);
 
-                    tt_metal::SetRuntimeArgs(
+                    tt::tt_metal::SetRuntimeArgs(
                         program,
                         worker_reader_sender_kernel_id,
                         sender_worker_cores.at(b),
@@ -794,17 +794,17 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
                     std::vector<uint32_t> const& worker_sender_writer_rt_args = build_worker_sender_writer_rt_args();
 
                     std::string const& sender_writer_kernel_path = is_sharded ?
-                        "tt_eager/tt_dnn/op_library/all_gather/kernels/dataflow/worker_sharded_ring_gather_send_writer.cpp" :
-                        "tt_eager/tt_dnn/op_library/all_gather/kernels/dataflow/worker_interleaved_ring_gather_send_writer.cpp";
-                    KernelHandle worker_sender_writer_kernel_id = tt_metal::CreateKernel(
+                        "ttnn/cpp/ttnn/operations/ccl/all_gather/device/kernels/dataflow/worker_sharded_ring_gather_send_writer.cpp" :
+                        "ttnn/cpp/ttnn/operations/ccl/all_gather/device/kernels/dataflow/worker_interleaved_ring_gather_send_writer.cpp";
+                    KernelHandle worker_sender_writer_kernel_id = tt::tt_metal::CreateKernel(
                         program,
                         sender_writer_kernel_path,
                         sender_worker_cores.at(b),
-                        tt_metal::WriterDataMovementConfig(worker_sender_writer_ct_args, worker_defines));
+                        tt::tt_metal::WriterDataMovementConfig(worker_sender_writer_ct_args, worker_defines));
 
                     worker_writer_sender_kernels.push_back(worker_sender_writer_kernel_id);
 
-                    tt_metal::SetRuntimeArgs(
+                    tt::tt_metal::SetRuntimeArgs(
                         program,
                         worker_sender_writer_kernel_id,
                         sender_worker_cores.at(b),
@@ -971,17 +971,17 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
                     std::vector<uint32_t> worker_receiver_reader_rt_args = build_worker_receiver_reader_rt_args();
 
                     std::string const& receiver_reader_kernel_path = is_sharded ?
-                        "tt_eager/tt_dnn/op_library/all_gather/kernels/dataflow/worker_sharded_ring_gather_receive_reader.cpp" :
-                        "tt_eager/tt_dnn/op_library/all_gather/kernels/dataflow/worker_interleaved_ring_gather_receive_reader.cpp";
-                    KernelHandle worker_receiver_reader_kernel_id = tt_metal::CreateKernel(
+                        "ttnn/cpp/ttnn/operations/ccl/all_gather/device/kernels/dataflow/worker_sharded_ring_gather_receive_reader.cpp" :
+                        "ttnn/cpp/ttnn/operations/ccl/all_gather/device/kernels/dataflow/worker_interleaved_ring_gather_receive_reader.cpp";
+                    KernelHandle worker_receiver_reader_kernel_id = tt::tt_metal::CreateKernel(
                         program,
                         receiver_reader_kernel_path,
                         receiver_worker_cores.at(b),
-                        tt_metal::ReaderDataMovementConfig(worker_receiver_reader_ct_args, worker_defines));
+                        tt::tt_metal::ReaderDataMovementConfig(worker_receiver_reader_ct_args, worker_defines));
 
                     worker_reader_receiver_kernels.push_back(worker_receiver_reader_kernel_id);
 
-                    tt_metal::SetRuntimeArgs(
+                    tt::tt_metal::SetRuntimeArgs(
                         program,
                         worker_receiver_reader_kernel_id,
                         receiver_worker_cores.at(b),
@@ -1123,17 +1123,17 @@ operation::ProgramWithCallbacks all_gather_multi_core_with_workers(const Tensor&
                     std::vector<uint32_t> worker_receive_writer_rt_args = build_worker_receive_writer_rt_args();
 
                     std::string const& receiver_writer_kernel_path = is_sharded ?
-                        "tt_eager/tt_dnn/op_library/all_gather/kernels/dataflow/worker_sharded_ring_gather_receive_writer.cpp" :
-                        "tt_eager/tt_dnn/op_library/all_gather/kernels/dataflow/worker_interleaved_ring_gather_receive_writer.cpp";
-                    KernelHandle worker_receive_writer_kernel_id = tt_metal::CreateKernel(
+                        "ttnn/cpp/ttnn/operations/ccl/all_gather/device/kernels/dataflow/worker_sharded_ring_gather_receive_writer.cpp" :
+                        "ttnn/cpp/ttnn/operations/ccl/all_gather/device/kernels/dataflow/worker_interleaved_ring_gather_receive_writer.cpp";
+                    KernelHandle worker_receive_writer_kernel_id = tt::tt_metal::CreateKernel(
                         program,
                         receiver_writer_kernel_path,
                         receiver_worker_cores.at(b),
-                        tt_metal::WriterDataMovementConfig(worker_receive_writer_ct_args, worker_defines));
+                        tt::tt_metal::WriterDataMovementConfig(worker_receive_writer_ct_args, worker_defines));
 
                     worker_writer_receiver_kernels.push_back(worker_receive_writer_kernel_id);
 
-                    tt_metal::SetRuntimeArgs(
+                    tt::tt_metal::SetRuntimeArgs(
                         program,
                         worker_receive_writer_kernel_id,
                         receiver_worker_cores.at(b),

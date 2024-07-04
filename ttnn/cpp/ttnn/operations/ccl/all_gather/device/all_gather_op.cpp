@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tt_dnn/op_library/all_gather/all_gather_op.hpp"
+#include "ttnn/operations/ccl/all_gather/device/all_gather_op.hpp"
 #include "tt_dnn/op_library/math.hpp"
 
 #include "tt_metal/host_api.hpp"
@@ -11,9 +11,9 @@
 
 #include "eth_l1_address_map.h"
 
-namespace tt {
+namespace ttnn {
 
-namespace tt_metal {
+namespace utils {
 
 AllGatherMode choose_all_gather_mode(Tensor const& input_tensor, Tensor const& output_tensor, uint32_t dim) {
     bool is_sharded = input_tensor.is_sharded();
@@ -63,10 +63,10 @@ void AllGather::validate(const std::vector<Tensor> &input_tensors) const {
     }
 }
 
-std::vector<Shape> AllGather::compute_output_shapes(const std::vector<Tensor> &input_tensors) const {
+std::vector<tt::tt_metal::Shape> AllGather::compute_output_shapes(const std::vector<Tensor> &input_tensors) const {
     auto shape = input_tensors[0].get_legacy_shape();
     shape[this->dim] *= this->ring_size;
-    return std::vector<Shape>(input_tensors.size(), shape);
+    return std::vector<tt::tt_metal::Shape>(input_tensors.size(), shape);
 }
 
 std::vector<Tensor> AllGather::create_output_tensors(const std::vector<Tensor> &input_tensors) const {
@@ -85,7 +85,7 @@ std::vector<Tensor> AllGather::create_output_tensors(const std::vector<Tensor> &
 }
 
 operation::ProgramWithCallbacks AllGather::create_program(const std::vector<Tensor> & input_tensors, std::vector<Tensor> &output_tensors) const {
-    AllGatherMode all_gather_mode = tt::tt_metal::choose_all_gather_mode(input_tensors.at(0), output_tensors.at(0), dim);
+    AllGatherMode all_gather_mode = choose_all_gather_mode(input_tensors.at(0), output_tensors.at(0), dim);
     switch (all_gather_mode) {
         case AllGatherMode::RING_INTERLEAVED:
         case AllGatherMode::SINGLE_TILE_HIGH_WIDTH_SHARDED:
@@ -136,11 +136,8 @@ std::vector<Tensor> all_gather_impl(const std::vector<Tensor>& input_tensors, co
 std::vector<Tensor> all_gather(const std::vector<Tensor>& input_tensors, const uint32_t dim, const uint32_t num_links, const MemoryConfig& output_mem_config) {
     return all_gather_impl(input_tensors, dim, num_links, output_mem_config, all_gather_op::Topology::Ring);
 }
-std::vector<Tensor> line_all_gather(const std::vector<Tensor>& input_tensors, const uint32_t dim, const uint32_t num_links, const MemoryConfig& output_mem_config) {
-    return all_gather_impl(input_tensors, dim, num_links, output_mem_config, all_gather_op::Topology::Linear);
-}
 
-}  // namespace tt_metal
+}  // namespace utils
 
 namespace operations {
 namespace ccl {
@@ -175,7 +172,7 @@ Tensor all_gather(
             }
 
             return operation::run(
-                AllGather{
+                ttnn::utils::AllGather{
                     dim, num_links, num_devices, device_index, receiver_device_id, sender_device_id, memory_config.value_or(input_tensor.memory_config())},
                 {input_tensor});
         },
@@ -184,46 +181,8 @@ Tensor all_gather(
     return output_tensors.at(0);
 }
 
-Tensor line_all_gather(
-    const Tensor& input_tensor, const uint32_t dim, const uint32_t num_links, const std::optional<MemoryConfig>& memory_config) {
-
-    TT_FATAL(std::getenv("TT_METAL_SLOW_DISPATCH_MODE") == nullptr, "This op is only supported for Fast Dispatch");
-
-    auto devices = input_tensor.get_workers();
-    std::vector<Tensor> output_tensors = {Tensor(operation::get_workers_for_op_output({input_tensor}))};
-    operation::launch_op(
-        [dim, num_links, memory_config, devices](
-            const std::vector<Tensor>& input_tensors,
-            const std::vector<std::optional<const Tensor>>& optional_input_tensors,
-            const std::vector<std::optional<Tensor>>& optional_output_tensors) mutable -> std::vector<Tensor> {
-
-            const auto& input_tensor = input_tensors.at(0);
-            uint32_t num_devices = devices.size();
-
-            uint32_t device_index = 0; // Initialize device index
-            uint32_t receiver_device_id = 0; // Initialize receiver device ID
-            uint32_t sender_device_id = 0; // Initialize sender device ID
-
-            for (uint32_t i = 0; i < num_devices; ++i) {
-                if (devices[i] == input_tensor.device()) {
-                    device_index = i;
-                    receiver_device_id = devices[(i + 1) % num_devices]->id(); // Next device in the ring
-                    sender_device_id = devices[(i + num_devices - 1) % num_devices]->id(); // Previous device in the ring
-                    break;
-                }
-            }
-
-            return operation::run(
-                AllGather{
-                    dim, num_links, num_devices, device_index, receiver_device_id, sender_device_id, memory_config.value_or(input_tensor.memory_config()), all_gather_op::Topology::Linear},
-                {input_tensor});
-        },
-        {input_tensor},
-        output_tensors);
-    return output_tensors.at(0);
-}
 
 } // namespace ccl
 } // namespace operations
 
-}  // namespace tt
+}  // namespace ttnn
