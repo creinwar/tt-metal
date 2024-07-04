@@ -143,100 +143,154 @@ TEST_F(MultiCommandQueueSingleDeviceFixture, TestAsyncRuntimeAllocatedBuffers) {
     }
 }
 
-// TEST(TTNN_MultiDev, Test2CQ2Device) {
-//     auto devs = tt::tt_metal::detail::CreateDevices({0, 4}, 2);
-//     Device* dev0 = devs.at(0);
-//     Device* dev1 = devs.at(4);
-//     MemoryConfig mem_cfg = MemoryConfig{
-//         .memory_layout = tt::tt_metal::TensorMemoryLayout::INTERLEAVED,
-//         .buffer_type = BufferType::DRAM,
-//         .shard_spec = std::nullopt};
+Tensor dispatch_ops_to_device(Device* dev, Tensor input_tensor, uint8_t cq_id) {
+    auto op0 = tt::tt_metal::EltwiseUnary{std::vector{tt::tt_metal::UnaryWithParam{tt::tt_metal::UnaryOpType::MUL_UNARY_SFPU, 2}}};
+    auto op1 = tt::tt_metal::EltwiseUnary{std::vector{tt::tt_metal::UnaryWithParam{tt::tt_metal::UnaryOpType::NEG}}};
+    auto op2 = tt::tt_metal::EltwiseUnary{std::vector{tt::tt_metal::UnaryWithParam{tt::tt_metal::UnaryOpType::ADD_UNARY_SFPU, 500}}};
 
-//     ttnn::Shape shape = ttnn::Shape(Shape({1, 1, 2048, 2048}));
-//     uint32_t buf_size_datums = 2048 * 2048;
-//     uint32_t datum_size_bytes = 2;
-//     auto host_data_0 = std::shared_ptr<bfloat16 []>(new bfloat16[buf_size_datums]);
-//     auto host_data_1 = std::shared_ptr<bfloat16 []>(new bfloat16[buf_size_datums]);
-//     auto readback_data_0 = std::shared_ptr<bfloat16 []>(new bfloat16[buf_size_datums]);
-//     auto readback_data_1 = std::shared_ptr<bfloat16 []>(new bfloat16[buf_size_datums]);
+    Tensor output_tensor = ttnn::run_operation(cq_id, op0, {input_tensor}).at(0);
+    for (int i = 0; i < 3; i++) {
+        output_tensor = ttnn::run_operation(cq_id, op1, {output_tensor}).at(0);
+        output_tensor = ttnn::run_operation(cq_id, op1, {output_tensor}).at(0);
+        output_tensor = ttnn::run_operation(cq_id, op0, {output_tensor}).at(0);
+    }
+    output_tensor = ttnn::run_operation(cq_id, op1, {output_tensor}).at(0);
+    output_tensor = ttnn::run_operation(cq_id, op0, {output_tensor}).at(0);
+    output_tensor = ttnn::run_operation(cq_id, op2, {output_tensor}).at(0);
+    return output_tensor;
+}
+
+TEST(TTNN_MultiDev, Test2CQ2DeviceProgramsOnCQ1) {
+    // 8 devices with 2 CQs
+    auto devs = tt::tt_metal::detail::CreateDevices({0, 1, 2, 3, 4, 5, 6, 7}, 2);
+    Device* dev0 = devs.at(0);
+    Device* dev1 = devs.at(4);
+    MemoryConfig mem_cfg = MemoryConfig{
+        .memory_layout = tt::tt_metal::TensorMemoryLayout::INTERLEAVED,
+        .buffer_type = BufferType::DRAM,
+        .shard_spec = std::nullopt};
+
+    ttnn::Shape shape = ttnn::Shape(Shape({1, 3, 2048, 2048}));
+    uint32_t buf_size_datums = 2048 * 2048 * 3;
+    uint32_t datum_size_bytes = 2;
+    auto host_data = std::shared_ptr<bfloat16 []>(new bfloat16[buf_size_datums]);
+    auto readback_data = std::shared_ptr<bfloat16 []>(new bfloat16[buf_size_datums]);
 
 
-//     for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 30; i++) {
+        for (auto& dev : devs) {
+            auto dev_idx = dev.first;
+            auto device = dev.second;
+            for (int j = 0; j < buf_size_datums; j++) {
+                host_data[j] = bfloat16(static_cast<float>(i + dev_idx));
+            }
+            auto input_buffer = ttnn::allocate_buffer_on_device(buf_size_datums * datum_size_bytes, device, shape, DataType::BFLOAT16, Layout::TILE, mem_cfg);
+            auto input_storage = tt::tt_metal::DeviceStorage{input_buffer};
+            Tensor input_tensor = Tensor(input_storage, shape, DataType::BFLOAT16, Layout::TILE);
 
-//         for (int j = 0; j < buf_size_datums; j++) {
-//             host_data_0[j] = bfloat16(static_cast<float>(i));
-//         }
-//         for (int j = 0; j < buf_size_datums; j++) {
-//             host_data_1[j] = bfloat16(static_cast<float>(i + 16));
-//         }
+            auto write_event = std::make_shared<Event>();
+            auto workload_event = std::make_shared<Event>();
+            ttnn::write_buffer(0, input_tensor, {host_data, host_data, host_data, host_data, host_data, host_data, host_data, host_data});
+            ttnn::record_event(device->command_queue(0), write_event);
+            ttnn::wait_for_event(device->command_queue(1), write_event);
+            auto output_tensor = dispatch_ops_to_device(device, input_tensor, 1);
+            ttnn::record_event(device->command_queue(1), workload_event);
+            ttnn::wait_for_event(device->command_queue(0), workload_event);
 
-//         auto input_buffer_0 = ttnn::allocate_buffer_on_device(buf_size_datums * datum_size_bytes, dev0, shape, DataType::BFLOAT16, Layout::TILE, mem_cfg);
-//         auto input_storage_0 = tt::tt_metal::DeviceStorage{input_buffer_0};
-//         Tensor input_tensor_0 = Tensor(input_storage_0, shape, DataType::BFLOAT16, Layout::TILE);
+            ttnn::read_buffer(1, output_tensor, {readback_data, readback_data, readback_data, readback_data, readback_data, readback_data, readback_data, readback_data});
 
-//         auto input_buffer_1 = ttnn::allocate_buffer_on_device(buf_size_datums * datum_size_bytes, dev1, shape, DataType::BFLOAT16, Layout::TILE, mem_cfg);
-//         auto input_storage_1 = tt::tt_metal::DeviceStorage{input_buffer_1};
-//         Tensor input_tensor_1 = Tensor(input_storage_1, shape, DataType::BFLOAT16, Layout::TILE);
-//         auto write_event_dev0 = std::make_shared<Event>();
-//         auto workload_event_dev0 = std::make_shared<Event>();
-//         auto write_event_dev1 = std::make_shared<Event>();
-//         auto workload_event_dev1 = std::make_shared<Event>();
+            for (int j = 0; j < 3 * 2048 * 2048; j++) {
+                ASSERT_EQ(readback_data[i].to_float(), -1 * (i + dev_idx) * 32 + 500);
+            }
+        }
+    }
+    tt::tt_metal::detail::CloseDevices(devs);
+}
 
-//         // std::cout << "write to dev1" <<std::endl;
-//         ttnn::write_buffer(1, input_tensor_0, {host_data_0, {}, {}, {}, {}});
-//         ttnn::write_buffer(1, input_tensor_1, {{}, {}, {}, {}, host_data_1});
-//         ttnn::record_event(dev0->command_queue(1), write_event_dev0); // Record write on cq 1
-//         ttnn::record_event(dev1->command_queue(1), write_event_dev1); // Record write on cq 1
-//         // Wait until cq 1 write is complete
-//         ttnn::wait_for_event(dev0->command_queue(0), write_event_dev0);
-//         ttnn::wait_for_event(dev1->command_queue(0), write_event_dev1);
-//         // ttnn::event_synchronize(write_event);
-//         auto op0 = tt::tt_metal::EltwiseUnary{std::vector{tt::tt_metal::UnaryWithParam{tt::tt_metal::UnaryOpType::MUL_UNARY_SFPU, 2}}};
-//         auto op1 = tt::tt_metal::EltwiseUnary{std::vector{tt::tt_metal::UnaryWithParam{tt::tt_metal::UnaryOpType::NEG}}};
-//         auto op2 = tt::tt_metal::EltwiseUnary{std::vector{tt::tt_metal::UnaryWithParam{tt::tt_metal::UnaryOpType::ADD_UNARY_SFPU, 500}}};
-//         Tensor output_tensor = ttnn::run_operation(1, op0, {input_tensor_1}).at(0);
-//         output_tensor = ttnn::run_operation(1, op1, {output_tensor}).at(0);
-//         output_tensor = ttnn::run_operation(1, op1, {output_tensor}).at(0);
-//         output_tensor = ttnn::run_operation(1, op0, {output_tensor}).at(0);
-//         output_tensor = ttnn::run_operation(1, op1, {output_tensor}).at(0);
-//         output_tensor = ttnn::run_operation(1, op1, {output_tensor}).at(0);
-//         output_tensor = ttnn::run_operation(1, op0, {output_tensor}).at(0);
-//         output_tensor = ttnn::run_operation(1, op1, {output_tensor}).at(0);
-//         output_tensor = ttnn::run_operation(1, op1, {output_tensor}).at(0);
-//         output_tensor = ttnn::run_operation(1, op0, {output_tensor}).at(0);
-//         output_tensor = ttnn::run_operation(1, op1, {output_tensor}).at(0);
-//         output_tensor = ttnn::run_operation(1, op0, {output_tensor}).at(0);
-//         output_tensor = ttnn::run_operation(1, op2, {output_tensor}).at(0);
+TEST(TTNN_MultiDev, Test2CQ2DeviceProgramsOnCQ0) {
+    // 8 devices with 2 CQs
+    auto devs = tt::tt_metal::detail::CreateDevices({0, 1, 2, 3, 4, 5, 6, 7}, 2);
+    Device* dev0 = devs.at(0);
+    Device* dev1 = devs.at(4);
+    MemoryConfig mem_cfg = MemoryConfig{
+        .memory_layout = tt::tt_metal::TensorMemoryLayout::INTERLEAVED,
+        .buffer_type = BufferType::DRAM,
+        .shard_spec = std::nullopt};
 
-//         Tensor output_tensor_dev0 = ttnn::run_operation(1, op0, {input_tensor_0}).at(0);
-//         output_tensor_dev0 = ttnn::run_operation(1, op1, {output_tensor_dev0}).at(0);
-//         output_tensor_dev0 = ttnn::run_operation(1, op1, {output_tensor_dev0}).at(0);
-//         output_tensor_dev0 = ttnn::run_operation(1, op0, {output_tensor_dev0}).at(0);
-//         output_tensor_dev0 = ttnn::run_operation(1, op1, {output_tensor_dev0}).at(0);
-//         output_tensor_dev0 = ttnn::run_operation(1, op1, {output_tensor_dev0}).at(0);
-//         output_tensor_dev0 = ttnn::run_operation(1, op0, {output_tensor_dev0}).at(0);
-//         output_tensor_dev0 = ttnn::run_operation(1, op1, {output_tensor_dev0}).at(0);
-//         output_tensor_dev0 = ttnn::run_operation(1, op1, {output_tensor_dev0}).at(0);
-//         output_tensor_dev0 = ttnn::run_operation(1, op0, {output_tensor_dev0}).at(0);
-//         output_tensor_dev0 = ttnn::run_operation(1, op1, {output_tensor_dev0}).at(0);
-//         output_tensor_dev0 = ttnn::run_operation(1, op0, {output_tensor_dev0}).at(0);
-//         output_tensor_dev0 = ttnn::run_operation(1, op2, {output_tensor_dev0}).at(0);
-//         ttnn::record_event(dev0->command_queue(0), workload_event_dev0);
-//         ttnn::record_event(dev1->command_queue(0), workload_event_dev1);
-//         // Wait until cq 0 prog execution is done
-//         ttnn::wait_for_event(dev0->command_queue(1), workload_event_dev0);
-//         ttnn::wait_for_event(dev1->command_queue(1), workload_event_dev1);
-//         // ttnn::event_synchronize(workload_event);
-//         ttnn::read_buffer(1, output_tensor_dev0, {readback_data_0, {}, {}, {}, {}});
-//         ttnn::read_buffer(1, output_tensor, {{}, {}, {}, {}, readback_data_1});
+    ttnn::Shape shape = ttnn::Shape(Shape({1, 3, 2048, 2048}));
+    uint32_t buf_size_datums = 2048 * 2048 * 3;
+    uint32_t datum_size_bytes = 2;
+    auto host_data = std::shared_ptr<bfloat16 []>(new bfloat16[buf_size_datums]);
+    auto readback_data = std::shared_ptr<bfloat16 []>(new bfloat16[buf_size_datums]);
 
-//         for (int j = 0; j < 2048 * 2048; j++) {
-//             ASSERT_EQ(readback_data_0[i].to_float(), -1 * i * 32 + 500);
-//         }
 
-//         for (int j = 0; j < 2048 * 2048; j++) {
-//             ASSERT_EQ(readback_data_1[i].to_float(), -1 * (i + 16) * 32 + 500);
-//         }
-//     }
-//     tt::tt_metal::detail::CloseDevices(devs);
-// }
+    for (int i = 0; i < 30; i++) {
+        for (auto& dev : devs) {
+            auto dev_idx = dev.first;
+            auto device = dev.second;
+            for (int j = 0; j < buf_size_datums; j++) {
+                host_data[j] = bfloat16(static_cast<float>(i + dev_idx));
+            }
+            auto input_buffer = ttnn::allocate_buffer_on_device(buf_size_datums * datum_size_bytes, device, shape, DataType::BFLOAT16, Layout::TILE, mem_cfg);
+            auto input_storage = tt::tt_metal::DeviceStorage{input_buffer};
+            Tensor input_tensor = Tensor(input_storage, shape, DataType::BFLOAT16, Layout::TILE);
+
+            auto write_event = std::make_shared<Event>();
+            auto workload_event = std::make_shared<Event>();
+            ttnn::write_buffer(1, input_tensor, {host_data, host_data, host_data, host_data, host_data, host_data, host_data, host_data});
+            ttnn::record_event(device->command_queue(1), write_event);
+            ttnn::wait_for_event(device->command_queue(0), write_event);
+            auto output_tensor = dispatch_ops_to_device(device, input_tensor, 0);
+            ttnn::record_event(device->command_queue(0), workload_event);
+            ttnn::wait_for_event(device->command_queue(1), workload_event);
+
+            ttnn::read_buffer(1, output_tensor, {readback_data, readback_data, readback_data, readback_data, readback_data, readback_data, readback_data, readback_data});
+
+            for (int j = 0; j < 3 * 2048 * 2048; j++) {
+                ASSERT_EQ(readback_data[i].to_float(), -1 * (i + dev_idx) * 32 + 500);
+            }
+        }
+    }
+    tt::tt_metal::detail::CloseDevices(devs);
+}
+
+TEST(TTNN_MultiDev, Test2CQ2DeviceWithCQ1Only) {
+    // 8 devices with 2 CQs
+    auto devs = tt::tt_metal::detail::CreateDevices({0, 1, 2, 3, 4, 5, 6, 7}, 2);
+    Device* dev0 = devs.at(0);
+    Device* dev1 = devs.at(4);
+    MemoryConfig mem_cfg = MemoryConfig{
+        .memory_layout = tt::tt_metal::TensorMemoryLayout::INTERLEAVED,
+        .buffer_type = BufferType::DRAM,
+        .shard_spec = std::nullopt};
+
+    ttnn::Shape shape = ttnn::Shape(Shape({1, 3, 2048, 2048}));
+    uint32_t buf_size_datums = 2048 * 2048 * 3;
+    uint32_t datum_size_bytes = 2;
+    auto host_data = std::shared_ptr<bfloat16 []>(new bfloat16[buf_size_datums]);
+    auto readback_data = std::shared_ptr<bfloat16 []>(new bfloat16[buf_size_datums]);
+
+
+    for (int i = 0; i < 30; i++) {
+        for (auto& dev : devs) {
+            auto dev_idx = dev.first;
+            auto device = dev.second;
+            for (int j = 0; j < buf_size_datums; j++) {
+                host_data[j] = bfloat16(static_cast<float>(i + dev_idx));
+            }
+            auto input_buffer = ttnn::allocate_buffer_on_device(buf_size_datums * datum_size_bytes, device, shape, DataType::BFLOAT16, Layout::TILE, mem_cfg);
+            auto input_storage = tt::tt_metal::DeviceStorage{input_buffer};
+            Tensor input_tensor = Tensor(input_storage, shape, DataType::BFLOAT16, Layout::TILE);
+
+            ttnn::write_buffer(1, input_tensor, {host_data, host_data, host_data, host_data, host_data, host_data, host_data, host_data});
+            auto output_tensor = dispatch_ops_to_device(device, input_tensor, 1);
+
+            ttnn::read_buffer(1, output_tensor, {readback_data, readback_data, readback_data, readback_data, readback_data, readback_data, readback_data, readback_data});
+
+            for (int j = 0; j < 3 * 2048 * 2048; j++) {
+                ASSERT_EQ(readback_data[i].to_float(), -1 * (i + dev_idx) * 32 + 500);
+            }
+        }
+    }
+    tt::tt_metal::detail::CloseDevices(devs);
+}
