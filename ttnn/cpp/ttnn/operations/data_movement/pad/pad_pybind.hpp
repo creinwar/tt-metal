@@ -73,7 +73,7 @@ Keyword Args:
                 py::arg("input_tensor_start"),
                 py::arg("value"),
                 py::kw_only(),
-                py::arg("use_multicore") = true,
+                py::arg("use_multicore") = false,
                 py::arg("memory_config") = std::nullopt,
                 py::arg("queue_id") = 0,
                 }
