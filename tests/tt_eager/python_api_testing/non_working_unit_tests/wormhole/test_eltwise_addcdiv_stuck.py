@@ -8,8 +8,7 @@ import ttnn
 from tests.tt_eager.python_api_testing.sweep_tests import pytorch_ops
 from tests.tt_eager.python_api_testing.sweep_tests.comparison_funcs import comp_pcc
 from tests.tt_eager.python_api_testing.sweep_tests.generation_funcs import gen_rand
-from tests.tt_eager.python_api_testing.sweep_tests.tt_lib_ops import setup_tt_tensor, eltwise_addcdiv
-from models.utility_functions import tt2torch_tensor
+from tests.tt_eager.python_api_testing.sweep_tests.tt_lib_ops import eltwise_addcdiv
 
 
 def run_eltwise_addcdiv(input_shape, dtype, dlayout, in_mem_config, output_mem_config, data_seed, scalar, device):
@@ -20,8 +19,8 @@ def run_eltwise_addcdiv(input_shape, dtype, dlayout, in_mem_config, output_mem_c
     z = gen_rand(input_shape, -100, 100)
 
     x_ref = x.detach().clone()
-    y_ref = x.detach().clone()
-    z_ref = x.detach().clone()
+    y_ref = y.detach().clone()
+    z_ref = z.detach().clone()
 
     # compute ref value
     ref_value = pytorch_ops.addcdiv(x_ref, y_ref, z_ref, scalar=scalar)
@@ -38,7 +37,6 @@ def run_eltwise_addcdiv(input_shape, dtype, dlayout, in_mem_config, output_mem_c
         output_mem_config=output_mem_config,
     )
     # compare tt and golden outputs
-
     success, pcc_value = comp_pcc(ref_value, tt_result)
     logger.debug(pcc_value)
     logger.debug(success)
@@ -48,17 +46,17 @@ def run_eltwise_addcdiv(input_shape, dtype, dlayout, in_mem_config, output_mem_c
 
 test_sweep_args = [
     (
-        (4, 5, 128, 96),
+        (4, 7, 32, 96),
         [ttl.tensor.DataType.BFLOAT16, ttl.tensor.DataType.BFLOAT16, ttl.tensor.DataType.BFLOAT16],
         [ttl.tensor.Layout.TILE, ttl.tensor.Layout.TILE, ttl.tensor.Layout.TILE],
         [
-            ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.L1),
             ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.DRAM),
             ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.L1),
+            None,
         ],
         ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.L1),
-        7329721,
-        7.8125,
+        16305027,
+        83.0,
     ),
 ]
 

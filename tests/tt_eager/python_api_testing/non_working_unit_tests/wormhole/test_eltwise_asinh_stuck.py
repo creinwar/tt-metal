@@ -8,8 +8,7 @@ import ttnn
 from tests.tt_eager.python_api_testing.sweep_tests import pytorch_ops
 from tests.tt_eager.python_api_testing.sweep_tests.comparison_funcs import comp_pcc
 from tests.tt_eager.python_api_testing.sweep_tests.generation_funcs import gen_rand
-from tests.tt_eager.python_api_testing.sweep_tests.tt_lib_ops import setup_tt_tensor, eltwise_asinh
-from models.utility_functions import tt2torch_tensor
+from tests.tt_eager.python_api_testing.sweep_tests.tt_lib_ops import eltwise_asinh
 
 
 def run_eltwise_asinh(input_shape, dtype, dlayout, in_mem_config, output_mem_config, data_seed, device):
@@ -44,9 +43,9 @@ test_sweep_args = [
         (4, 7, 32, 96),
         [ttl.tensor.DataType.BFLOAT16],
         [ttl.tensor.Layout.TILE],
-        [ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.L1)],
+        [ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.DRAM)],
         ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.DRAM),
-        16305027,
+        17155532,
     ),
 ]
 

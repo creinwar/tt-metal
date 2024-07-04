@@ -8,8 +8,7 @@ import ttnn
 from tests.tt_eager.python_api_testing.sweep_tests import pytorch_ops
 from tests.tt_eager.python_api_testing.sweep_tests.comparison_funcs import comp_pcc
 from tests.tt_eager.python_api_testing.sweep_tests.generation_funcs import gen_rand
-from tests.tt_eager.python_api_testing.sweep_tests.tt_lib_ops import setup_tt_tensor, eltwise_addcdiv
-from models.utility_functions import tt2torch_tensor
+from tests.tt_eager.python_api_testing.sweep_tests.tt_lib_ops import eltwise_addcdiv
 
 
 def run_eltwise_addcdiv(input_shape, dtype, dlayout, in_mem_config, output_mem_config, data_seed, scalar, device):

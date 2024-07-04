@@ -8,11 +8,10 @@ import ttnn
 from tests.tt_eager.python_api_testing.sweep_tests import pytorch_ops
 from tests.tt_eager.python_api_testing.sweep_tests.comparison_funcs import comp_pcc
 from tests.tt_eager.python_api_testing.sweep_tests.generation_funcs import gen_rand
-from tests.tt_eager.python_api_testing.sweep_tests.tt_lib_ops import setup_tt_tensor, eltwise_acosh
-from models.utility_functions import tt2torch_tensor
+from tests.tt_eager.python_api_testing.sweep_tests.tt_lib_ops import eltwise_atanh
 
 
-def run_eltwise_acosh(input_shape, dtype, dlayout, in_mem_config, output_mem_config, data_seed, device):
+def run_eltwise_atanh(input_shape, dtype, dlayout, in_mem_config, output_mem_config, data_seed, device):
     torch.manual_seed(data_seed)
 
     x = gen_rand(input_shape, -100, 100)
@@ -20,9 +19,9 @@ def run_eltwise_acosh(input_shape, dtype, dlayout, in_mem_config, output_mem_con
     x_ref = x.detach().clone()
 
     # compute ref value
-    ref_value = pytorch_ops.acosh(x_ref)
+    ref_value = pytorch_ops.atanh(x_ref)
 
-    tt_result = eltwise_acosh(
+    tt_result = eltwise_atanh(
         x=x,
         device=device,
         dtype=dtype,
@@ -55,6 +54,6 @@ test_sweep_args = [
     "input_shape, dtype, dlayout, in_mem_config, out_mem_config, data_seed",
     (test_sweep_args),
 )
-def test_eltwise_acosh(input_shape, dtype, dlayout, in_mem_config, out_mem_config, data_seed, device):
+def test_eltwise_atanh(input_shape, dtype, dlayout, in_mem_config, out_mem_config, data_seed, device):
     for i in range(0, 2):
-        run_eltwise_acosh(input_shape, dtype, dlayout, in_mem_config, out_mem_config, data_seed, device)
+        run_eltwise_atanh(input_shape, dtype, dlayout, in_mem_config, out_mem_config, data_seed, device)

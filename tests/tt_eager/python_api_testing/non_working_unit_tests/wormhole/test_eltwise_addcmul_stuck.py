@@ -6,10 +6,10 @@ import tt_lib as ttl
 from tests.tt_eager.python_api_testing.sweep_tests import pytorch_ops
 from tests.tt_eager.python_api_testing.sweep_tests.comparison_funcs import comp_pcc
 from tests.tt_eager.python_api_testing.sweep_tests.generation_funcs import gen_rand
-from tests.tt_eager.python_api_testing.sweep_tests.tt_lib_ops import setup_tt_tensor, eltwise_addcmul
+from tests.tt_eager.python_api_testing.sweep_tests.tt_lib_ops import eltwise_addcmul
 
 
-def run_eltwise_addcmul(input_shape, dtype, dlayout, in_mem_config, output_mem_config, data_seed, scalar):
+def run_eltwise_addcmul(input_shape, dtype, dlayout, in_mem_config, output_mem_config, data_seed, scalar, device):
     random.seed(0)
     torch.manual_seed(data_seed)
 
@@ -27,8 +27,6 @@ def run_eltwise_addcmul(input_shape, dtype, dlayout, in_mem_config, output_mem_c
     logger.info(
         f"Running addcmul with input_shape {input_shape} dtype {dtype} dlayout {dlayout} input_mem_config {in_mem_config} output_mem_config {output_mem_config} scalar {scalar} data_seed {data_seed}"
     )
-
-    device = ttl.device.CreateDevice(0)
 
     try:
         tt_result = eltwise_addmul(
@@ -53,13 +51,10 @@ def run_eltwise_addcmul(input_shape, dtype, dlayout, in_mem_config, output_mem_c
     except Exception as exc:
         logger.warning(f"run_addcmul RuntimeError occured {exc}")
 
-    ttl.device.DeallocateBuffers(device)
-    ttl.device.CloseDevice(device)
-
     logger.info(f"Finished running addcmul")
 
 
-def test_eltwise_addcmul():
+def test_eltwise_addcmul(device):
     run_eltwise_addcmul(
         input_shape=(5, 3, 96, 64),
         dtype=[ttl.tensor.DataType.BFLOAT16, ttl.tensor.DataType.BFLOAT16, ttl.tensor.DataType.BFLOAT16],
@@ -72,6 +67,7 @@ def test_eltwise_addcmul():
         output_mem_config=ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.L1),
         data_seed=3181992,
         scalar=95.5,
+        device=device,
     )
     run_eltwise_addcmul(
         input_shape=(5, 5, 160, 192),
@@ -85,6 +81,7 @@ def test_eltwise_addcmul():
         output_mem_config=ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.L1),
         data_seed=4931206,
         scalar=8.625,
+        device=device,
     )
     run_eltwise_addcmul(
         input_shape=(3, 2, 192, 32),
@@ -98,6 +95,7 @@ def test_eltwise_addcmul():
         output_mem_config=ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.L1),
         data_seed=11079580,
         scalar=-8.625,
+        device=device,
     )
     # Not in csv file
     run_eltwise_addcmul(
@@ -112,4 +110,5 @@ def test_eltwise_addcmul():
         output_mem_config=ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.L1),
         data_seed=10609800,
         scalar=-50.0,
+        device=device,
     )
