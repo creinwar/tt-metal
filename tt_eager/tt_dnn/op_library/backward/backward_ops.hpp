@@ -23,12 +23,6 @@ std::vector<Tensor> addcmul_bw(
     float value,
     const MemoryConfig& output_mem_config = operation::DEFAULT_OUTPUT_MEMORY_CONFIG);
 
-std::vector<Tensor> unary_mul_bw(
-    const Tensor& grad,
-    const Tensor& input,
-    float scalar,
-    const MemoryConfig& output_mem_config = operation::DEFAULT_OUTPUT_MEMORY_CONFIG);
-
 std::vector<Tensor> unary_add_bw(
     const Tensor& grad,
     const Tensor& input,
