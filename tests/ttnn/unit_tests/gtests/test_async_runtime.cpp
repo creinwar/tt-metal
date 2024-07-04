@@ -161,7 +161,7 @@ TEST_F(MultiCommandQueueSingleDeviceFixture, TestAsyncRuntimeAllocatedBuffers) {
 //     auto readback_data_1 = std::shared_ptr<bfloat16 []>(new bfloat16[buf_size_datums]);
 
 
-//     for (int i = 0; i < 20; i++) {
+//     for (int i = 0; i < 30; i++) {
 
 //         for (int j = 0; j < buf_size_datums; j++) {
 //             host_data_0[j] = bfloat16(static_cast<float>(i));
@@ -230,11 +230,11 @@ TEST_F(MultiCommandQueueSingleDeviceFixture, TestAsyncRuntimeAllocatedBuffers) {
 //         ttnn::read_buffer(1, output_tensor_dev0, {readback_data_0, {}, {}, {}, {}});
 //         ttnn::read_buffer(1, output_tensor, {{}, {}, {}, {}, readback_data_1});
 
-//         for (int j = 0; j < 32 * 32 * 32; j++) {
+//         for (int j = 0; j < 2048 * 2048; j++) {
 //             ASSERT_EQ(readback_data_0[i].to_float(), -1 * i * 32 + 500);
 //         }
 
-//         for (int j = 0; j < 32 * 32 * 32; j++) {
+//         for (int j = 0; j < 2048 * 2048; j++) {
 //             ASSERT_EQ(readback_data_1[i].to_float(), -1 * (i + 16) * 32 + 500);
 //         }
 //     }
