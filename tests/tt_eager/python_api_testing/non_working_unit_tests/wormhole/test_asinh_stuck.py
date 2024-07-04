@@ -8,25 +8,22 @@ import ttnn
 from tests.tt_eager.python_api_testing.sweep_tests import pytorch_ops
 from tests.tt_eager.python_api_testing.sweep_tests.comparison_funcs import comp_pcc
 from tests.tt_eager.python_api_testing.sweep_tests.generation_funcs import gen_rand
-from tests.tt_eager.python_api_testing.sweep_tests.tt_lib_ops import setup_tt_tensor, eltwise_atan2
+from tests.tt_eager.python_api_testing.sweep_tests.tt_lib_ops import setup_tt_tensor, eltwise_asinh
 from models.utility_functions import tt2torch_tensor
 
 
-def run_eltwise_atan2(input_shape, dtype, dlayout, in_mem_config, output_mem_config, data_seed, device):
+def run_eltwise_asinh(input_shape, dtype, dlayout, in_mem_config, output_mem_config, data_seed, device):
     torch.manual_seed(data_seed)
 
     x = gen_rand(input_shape, -100, 100)
-    y = gen_rand(input_shape, -100, 100)
 
     x_ref = x.detach().clone()
-    y_ref = y.detach().clone()
 
     # compute ref value
-    ref_value = pytorch_ops.atan2(x_ref, y_ref)
+    ref_value = pytorch_ops.asinh(x_ref)
 
-    tt_result = eltwise_atan2(
+    tt_result = eltwise_asinh(
         x=x,
-        y=y,
         device=device,
         dtype=dtype,
         layout=dlayout,
@@ -45,14 +42,11 @@ def run_eltwise_atan2(input_shape, dtype, dlayout, in_mem_config, output_mem_con
 test_sweep_args = [
     (
         (4, 7, 32, 96),
-        [ttl.tensor.DataType.BFLOAT16, ttl.tensor.DataType.BFLOAT16],
-        [ttl.tensor.Layout.TILE, ttl.tensor.Layout.TILE],
-        [
-            ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.DRAM),
-            ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.DRAM),
-        ],
+        [ttl.tensor.DataType.BFLOAT16],
+        [ttl.tensor.Layout.TILE],
+        [ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.L1)],
         ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.DRAM),
-        17155532,
+        16305027,
     ),
 ]
 
@@ -61,6 +55,6 @@ test_sweep_args = [
     "input_shape, dtype, dlayout, in_mem_config, out_mem_config, data_seed",
     (test_sweep_args),
 )
-def test_eltwise_atan2(input_shape, dtype, dlayout, in_mem_config, out_mem_config, data_seed, device):
+def test_eltwise_asinh(input_shape, dtype, dlayout, in_mem_config, out_mem_config, data_seed, device):
     for i in range(0, 2):
-        run_eltwise_atan2(input_shape, dtype, dlayout, in_mem_config, out_mem_config, data_seed, device)
+        run_eltwise_asinh(input_shape, dtype, dlayout, in_mem_config, out_mem_config, data_seed, device)

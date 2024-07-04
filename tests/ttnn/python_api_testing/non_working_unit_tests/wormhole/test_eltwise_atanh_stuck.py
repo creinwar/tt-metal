@@ -5,13 +5,11 @@ import torch
 import tt_lib as ttl
 import ttnn
 
-from tests.tt_eager.python_api_testing.sweep_tests import pytorch_ops
-from tests.tt_eager.python_api_testing.sweep_tests.comparison_funcs import comp_pcc
-from tests.tt_eager.python_api_testing.sweep_tests.generation_funcs import gen_rand
-from tests.tt_eager.python_api_testing.sweep_tests.tt_lib_ops import eltwise_asinh
+from tests.ttnn.utils_for_testing import assert_with_pcc
+from tests.ttnn.python_api_testing.sweep_tests import ttnn_ops
 
 
-def run_eltwise_asinh(input_shape, dtype, dlayout, in_mem_config, output_mem_config, data_seed, device):
+def run_eltwise_atanh(input_shape, dtype, dlayout, in_mem_config, output_mem_config, data_seed, device):
     torch.manual_seed(data_seed)
 
     x = gen_rand(input_shape, -100, 100)
@@ -19,9 +17,9 @@ def run_eltwise_asinh(input_shape, dtype, dlayout, in_mem_config, output_mem_con
     x_ref = x.detach().clone()
 
     # compute ref value
-    ref_value = pytorch_ops.asinh(x_ref)
+    ref_value = torch.atanh(x_ref)
 
-    tt_result = eltwise_asinh(
+    tt_result = ttnn_ops.atanh(
         x=x,
         device=device,
         dtype=dtype,
@@ -31,11 +29,7 @@ def run_eltwise_asinh(input_shape, dtype, dlayout, in_mem_config, output_mem_con
     )
     # compare tt and golden outputs
 
-    success, pcc_value = comp_pcc(ref_value, tt_result)
-    logger.debug(pcc_value)
-    logger.debug(success)
-
-    assert success
+    assert assert_with_pcc(ref_value, tt_result, 0.99)
 
 
 test_sweep_args = [
@@ -54,6 +48,6 @@ test_sweep_args = [
     "input_shape, dtype, dlayout, in_mem_config, out_mem_config, data_seed",
     (test_sweep_args),
 )
-def test_eltwise_asinh(input_shape, dtype, dlayout, in_mem_config, out_mem_config, data_seed, device):
+def test_eltwise_atanh(input_shape, dtype, dlayout, in_mem_config, out_mem_config, data_seed, device):
     for i in range(0, 2):
-        run_eltwise_asinh(input_shape, dtype, dlayout, in_mem_config, out_mem_config, data_seed, device)
+        run_eltwise_atanh(input_shape, dtype, dlayout, in_mem_config, out_mem_config, data_seed, device)
