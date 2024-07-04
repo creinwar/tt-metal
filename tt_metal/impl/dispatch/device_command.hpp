@@ -301,6 +301,7 @@ class DeviceCommand {
     void add_data(const void *data, uint32_t data_size_to_copyB, uint32_t cmd_write_offset_incrementB) {
         this->validate_cmd_write(cmd_write_offset_incrementB);
         this->memcpy((uint8_t *)this->cmd_region + this->cmd_write_offsetB, data, data_size_to_copyB);
+	__asm volatile("fence" ::: "memory");
         this->cmd_write_offsetB += cmd_write_offset_incrementB;
     }
 

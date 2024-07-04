@@ -104,6 +104,7 @@ class Cluster {
 
     void dram_barrier(chip_id_t chip_id) const;
     void l1_barrier(chip_id_t chip_id) const;
+    void flush_region(chip_id_t chip_id, void *vaddr, uint64_t size) const;
 
     uint32_t get_num_host_channels(chip_id_t device_id) const;
     uint32_t get_host_channel_size(chip_id_t device_id, uint32_t channel) const;

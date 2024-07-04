@@ -4,7 +4,7 @@
 
 #include "tt_cluster.hpp"
 
-#include <immintrin.h>
+//#include <immintrin.h>
 
 #include <iomanip>
 #include <iostream>
@@ -569,6 +569,11 @@ void Cluster::dram_barrier(chip_id_t chip_id) const {
 void Cluster::l1_barrier(chip_id_t chip_id) const {
     // Sets and resets L1 barrier of all tensix cores and ethernet cores
     this->get_driver(chip_id).l1_membar(chip_id, "LARGE_WRITE_TLB");
+}
+
+void Cluster::flush_region(chip_id_t chip_id, void *vaddr, uint64_t size) const {
+    // Instructs the kernel to flush the specified virtual address region if necessary
+    this->get_driver(chip_id).flush_region(chip_id, vaddr, size);
 }
 
 uint32_t Cluster::get_num_host_channels(chip_id_t device_id) const {

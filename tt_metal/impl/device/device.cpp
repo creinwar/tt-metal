@@ -389,6 +389,9 @@ void Device::compile_command_queue_programs() {
             uint32_t completion_queue_start_addr = issue_queue_start_addr + issue_queue_size;
             uint32_t completion_queue_size = this->sysmem_manager_->get_completion_queue_size(cq_id);
 
+            std::cout << "*** command_queue_start_addr    = 0x" << std::hex << command_queue_start_addr << std::endl;
+            std::cout << "*** issue_queue_start_addr      = 0x" << std::hex << issue_queue_start_addr << std::endl;
+            std::cout << "*** completion_queue_start_addr = 0x" << std::hex << completion_queue_start_addr << std::endl;
 
             std::map<string, string> prefetch_defines = {
                 {"DISPATCH_KERNEL", "1"},

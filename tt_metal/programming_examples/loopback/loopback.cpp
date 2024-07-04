@@ -75,7 +75,12 @@ int main(int argc, char **argv) {
         * Create input data and runtime arguments, then execute
         */
         std::vector<uint32_t> input_vec = create_random_vector_of_bfloat16(
-            dram_buffer_size, 100, std::chrono::system_clock::now().time_since_epoch().count());
+           dram_buffer_size, 100, std::chrono::system_clock::now().time_since_epoch().count());
+	// std::vector<uint32_t> input_vec;
+	// for(uint64_t i = 0; i < dram_buffer_size/4; i++){
+	// 	input_vec.push_back(i*4);
+	// }
+
         EnqueueWriteBuffer(cq, input_dram_buffer, input_vec, false);
 
         const std::vector<uint32_t> runtime_args = {
@@ -107,7 +112,15 @@ int main(int argc, char **argv) {
 
         pass &= input_vec == result_vec;
 
+	tt::log_info(tt::LogTest, "vectors equal = {}", pass);
+
         pass &= CloseDevice(device);
+	
+	tt::log_info(tt::LogTest, "CloseDevice = {}", pass);
+
+	/*for(uint64_t i = 0; i < result_vec.size(); i++){
+		tt::log_info(tt::LogTest,"[{}] expected: {}, result: {}", i, input_vec[i], result_vec[i]);
+	}*/
 
     } catch (const std::exception &e) {
         tt::log_error(tt::LogTest, "Test failed with exception!");

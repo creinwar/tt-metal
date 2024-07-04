@@ -133,8 +133,16 @@ void read_from_pcie(volatile tt_l1_ptr uint32_t *& prefetch_q_rd_ptr,
     }
 
     uint64_t host_src_addr = get_noc_addr_helper(NOC_XY_ENCODING(PCIE_NOC_X, PCIE_NOC_Y), pcie_read_ptr);
-    DPRINT << "read_from_pcie: " << fence + preamble_size << " " << pcie_read_ptr << ENDL();
+    DPRINT << "read_from_pcie: local = " << fence + preamble_size << ", pcie = " << pcie_read_ptr << ", size = " << size << ENDL();
     noc_async_read(host_src_addr, fence + preamble_size, size);
+
+    // DEBUG: Make this a blocking read
+    noc_async_read_barrier();
+
+    // DEBUG: Print the last received 4-bytes
+    uint32_t *dbg_lst_rd = (uint32_t *)(fence + preamble_size + size - 4);
+    DPRINT << "read_from_pcie: last 4 bytes = 0x" << HEX() << *dbg_lst_rd << ENDL();
+
     pending_read_size = size + preamble_size;
     pcie_read_ptr += size;
 

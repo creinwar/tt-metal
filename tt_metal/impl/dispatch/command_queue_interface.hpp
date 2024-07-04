@@ -19,7 +19,8 @@ using namespace tt::tt_metal;
 static constexpr uint32_t PCIE_ALIGNMENT = 32;
 static constexpr uint32_t MAX_HUGEPAGE_SIZE = 1 << 30; // 1GB;
 
-static constexpr uint32_t MEMCPY_ALIGNMENT = sizeof(__m128i);
+//static constexpr uint32_t MEMCPY_ALIGNMENT = sizeof(__m128i);
+static constexpr uint32_t MEMCPY_ALIGNMENT = 16;
 
 template <typename T>
 using vector_memcpy_aligned = std::vector<T, boost::alignment::aligned_allocator<T, MEMCPY_ALIGNMENT>>;
@@ -173,10 +174,13 @@ inline uint32_t get_cq_completion_wr_ptr(chip_id_t chip_id, uint8_t cq_id, uint3
 template <bool debug_sync = false>
 static inline void memcpy_to_device(void *__restrict dst, const void * __restrict src, size_t n)
 {
+    // TODO: This defaults to chip_id = 0 which is probably not what we want!
+    chip_id_t mmio_device_id = tt::Cluster::instance().get_associated_mmio_device(0);
+
     TT_ASSERT((uintptr_t)dst % MEMCPY_ALIGNMENT == 0);
     TT_ASSERT(n % sizeof(uint32_t) == 0);
 
-    static constexpr uint32_t inner_loop = 8;
+    /*static constexpr uint32_t inner_loop = 8;
     static constexpr uint32_t inner_blk_size = inner_loop * sizeof(__m128i);
 
     uint8_t *src8 = (uint8_t *)src;
@@ -225,10 +229,30 @@ static inline void memcpy_to_device(void *__restrict dst, const void * __restric
         for (size_t i = 0; i < n / sizeof(int32_t); i++) {
             _mm_stream_si32(dst32 + i, src32[i]);
         }
-    }
+    }*/
+
+    std::cout << "memcpy_to_device(0x" << std::hex << dst << ", 0x" << std::hex << src << ", 0x" << std::hex << n << ")\n";
+
+    // The C++ variant
+    std::memcpy(dst, src, n);
+    
+    // The ooga-booga variant
+    // uint8_t *dst8 = (uint8_t *) dst;
+    // uint8_t *src8 = (uint8_t *) src;
+    // for(uint64_t i = 0; i < n; i++){
+    // 	    *dst8++ = *src8++;
+    // }
+
     if constexpr (debug_sync) {
         tt_driver_atomics::sfence();
     }
+
+    // Try with the strongest fence possible
+    __asm volatile("fence iorw, iorw" ::: "memory");
+
+    // Flush the region using the kernel call
+    tt::Cluster::instance().flush_region(mmio_device_id, dst, n);
+
     return;
 }
 
@@ -483,6 +507,10 @@ class SystemMemoryManager {
         //  so channel offset needs to be subtracted to get address relative to channel
         // TODO: Reconsider offset sysmem offset calculations based on https://github.com/tenstorrent/tt-metal/issues/4757
         void* user_scratchspace = this->cq_sysmem_start + (write_ptr - this->channel_offset);
+
+        std::cout << "*** cq_write: write_ptr       = " << write_ptr << std::endl;
+        std::cout << "*** cq_write: cq_sysmem_start = " << (uint64_t) this->cq_sysmem_start << std::endl;
+        std::cout << "*** cq_write: channel_offset  = " << this->channel_offset << std::endl;
 
         if (this->bypass_enable) {
             TT_FATAL(size_in_bytes % sizeof(uint32_t) == 0, "Data size_in_bytes={} is not {}-byte aligned", size_in_bytes, sizeof(uint32_t));

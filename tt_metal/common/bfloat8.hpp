@@ -7,7 +7,7 @@
 #include <iostream>
 #include <random>
 #include <vector>
-#include <immintrin.h>
+//#include <immintrin.h>
 
 #include "tt_metal/common/assert.hpp"
 #include "tt_metal/common/logger.hpp"
@@ -175,6 +175,7 @@ inline std::vector<uint32_t> pack_fp32_vec_as_bfp8_tiles(const std::vector<float
 inline std::vector<float> unpack_bfp8_tiles_into_float_vec(const std::vector<uint32_t> &bfp8_tiles, bool row_major_output, bool is_exp_a) {
     ZoneScoped;
 
+#if defined( __SSE2__ )
     int num_elements_in_dword = 4;
     uint32_t size_bytes = bfp8_tiles.size() * num_elements_in_dword; // each uint32_t contains 4 BFP8 values
     uint32_t single_bfp8_tile_size = tile_size(tt::DataFormat::Bfp8_b);
@@ -261,6 +262,10 @@ inline std::vector<float> unpack_bfp8_tiles_into_float_vec(const std::vector<uin
             }
         }
     }
+#else
+    std::vector<float> float_vec;
+#endif
+
     return float_vec;
 }
 

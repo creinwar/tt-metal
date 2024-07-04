@@ -7,7 +7,7 @@
 #include <iostream>
 #include <random>
 #include <vector>
-#include <immintrin.h>
+//#include <immintrin.h>
 
 #include "tt_metal/common/assert.hpp"
 #include "tt_metal/common/logger.hpp"
@@ -33,6 +33,7 @@ constexpr int log2(int n) {
 inline std::vector<float> unpack_bfp4_tiles_into_float_vec(const std::vector<uint32_t> &bfp_tiles, bool row_major_output, bool is_exp_a) {
     ZoneScoped;
 
+#if defined( __SSE2__ )
     constexpr int num_elements_in_dword = 8;
     constexpr int data_dwords_per_exp = 16 / num_elements_in_dword;
     constexpr int num_exps_in_dword = 4;
@@ -160,6 +161,11 @@ inline std::vector<float> unpack_bfp4_tiles_into_float_vec(const std::vector<uin
             }
         }
     }
+
+#else
+    std::vector<float> float_vec;
+#endif
+
     return float_vec;
 }
 

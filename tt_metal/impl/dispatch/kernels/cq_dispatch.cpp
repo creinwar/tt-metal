@@ -144,6 +144,8 @@ void process_write_host_h() {
     uint32_t length = cmd->write_linear_host.length;
     DPRINT << "process_write_host_h: " << length << ENDL();
     uint32_t data_ptr = cmd_ptr;
+
+    DPRINT << "*** get_noc_addr_helper(pcie_noc_xy_encoding, 0) = " << HEX() << get_noc_addr_helper(pcie_noc_xy_encoding, 0) << ENDL();
     while (length != 0) {
         // Get a page if needed
         if (cb_fence == data_ptr) {
@@ -179,6 +181,10 @@ void process_write_host_h() {
         completion_queue_reserve_back(npages);
         uint32_t completion_queue_write_addr = cq_write_interface.completion_fifo_wr_ptr << 4;
         uint64_t host_completion_queue_write_addr = get_noc_addr_helper(pcie_noc_xy_encoding, completion_queue_write_addr);
+
+        DPRINT << "*** completion_queue_write_addr     : " << HEX() << completion_queue_write_addr << ENDL();
+        DPRINT << "*** host_completion_queue_write_addr: " << HEX() << host_completion_queue_write_addr << ENDL();
+
         // completion_queue_write_addr will never be equal to completion_queue_end_addr due to completion_queue_push_back
         // wrap logic so we don't need to handle this case explicitly to avoid 0 sized transactions
         if (completion_queue_write_addr + xfer_size > completion_queue_end_addr) {
